@@ -12,9 +12,9 @@ PyPI 拉取已发布的 openpi 与 LIBERO 仿真器包。
 - Python 3.10–3.12。
 - ``git``、``bash``、以及能编译 MuJoCo / robosuite 的 C 工具链。
 
-同时你还需要:
+同时你还需要：
 
-- 至少一个 LLM 提供商的 API key —— Anthropic、OpenAI, 或 OpenAI 兼容的
+- 至少一个 LLM 提供商的 API key —— Anthropic、OpenAI，或 OpenAI 兼容的
   chat 接口 —— 用于 reasoning brain。
 - 一个 VLA checkpoint。LIBERO / Pi0.5 推荐使用
   `HuggingFace: RLinf-Pi05-LIBERO-130-fullshot-SFT
@@ -23,14 +23,14 @@ PyPI 拉取已发布的 openpi 与 LIBERO 仿真器包。
 1. 用 pip 安装 RPent
 --------------------
 
-Clone RPent (用于 CLI 与运行配置), 再按需选择 extra 安装:
+Clone RPent (用于 CLI 与运行配置)，再按需选择 extra 安装：
 
 .. code-block:: bash
 
    git clone https://github.com/RLinf/RPent rpent && cd rpent
    pip install -e ".[full]"
 
-``.[full]`` 是默认的端到端组合 —— openpi Pi0.5 VLA + LIBERO-PRO 仿真器,
+``.[full]`` 是默认的端到端组合 —— openpi Pi0.5 VLA + LIBERO-PRO 仿真器，
 运行在 RLinf 运行时之上。
 
 可用的 extra:
@@ -56,7 +56,7 @@ Clone RPent (用于 CLI 与运行配置), 再按需选择 extra 安装:
 2. 下载仿真资产
 ---------------
 
-PyPI wheel 不包含大体积仿真资产。安装后需一次性下载:
+PyPI wheel 不包含大体积仿真资产。安装后需一次性下载：
 
 .. code-block:: bash
 
@@ -66,7 +66,7 @@ PyPI wheel 不包含大体积仿真资产。安装后需一次性下载:
 
 .. tip::
 
-   访问 Hugging Face 较慢时, 可通过 ``HF_ENDPOINT`` 走镜像加速下载:
+   访问 Hugging Face 较慢时，可通过 ``HF_ENDPOINT`` 走镜像加速下载：
 
    .. code-block:: bash
 
@@ -75,22 +75,22 @@ PyPI wheel 不包含大体积仿真资产。安装后需一次性下载:
 3. (可选) 真实机器人依赖
 ------------------------
 
-Franka 与 SO-101 的支持正在逐步接入; 每个机器人的 driver 会以一个包的
-形式放在 ``robots/<name>/`` 下, 并附带 ``README.md`` 说明其 SDK / 固件
+Franka 与 SO-101 的支持正在逐步接入；每个机器人的 driver 会以一个包的
+形式放在 ``robots/<name>/`` 下，并附带 ``README.md`` 说明其 SDK / 固件
 要求。当前进度参见 :doc:`usage/franka` 与 :doc:`usage/so101`。
 
 验证安装
 --------
 
 最快的验证方法是端到端跑通一个 LIBERO 任务 —— 见 :doc:`quickstart`。
-如果成功, 说明 env server、VLA server、reasoning brain 三者都健康。
+如果成功，说明 env server、VLA server、reasoning brain 三者都健康。
 
-如果出错:
+如果出错：
 
 - env server 的 stdout / stderr 会写到
   ``<output_dir>/env_server.log``。
 - VLA server 的日志在 ``<output_dir>/vla_server.log``。
 - Agent 本身的运行日志在 ``<output_dir>/run.log``。
 
-三份日志都放在这一次运行的 scratch 目录下, 所以失败的运行是自包含的、
+三份日志都放在这一次运行的 scratch 目录下，所以失败的运行是自包含的、
 易于排查。

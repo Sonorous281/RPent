@@ -2,7 +2,7 @@
 =====================
 
 RPent 中的 *action primitive* 就是把一次 tool 调用变成 environment 可
-执行动作的东西。它可以是一个学出来的策略 (VLA、WAM、扩散 planner),
+执行动作的东西。它可以是一个学出来的策略 (VLA、WAM、扩散 planner)，
 也可以是一段脚本化例程 (``move_to``、``open_gripper``)。本页说明这
 两类各自怎么加。
 
@@ -23,22 +23,22 @@ RPent 中的 *action primitive* 就是把一次 tool 调用变成 environment �
      - Pi0.5 (LIBERO)、RLDX-1 (RoboCasa)
    * - **脚本化的**
        (运动学 / 启发式)
-     - Agent 进程内; 需要运动学时可能走一次 driver 侧 RPC。
+     - Agent 进程内；需要运动学时可能走一次 driver 侧 RPC。
        没有模型权重。
      - ``move_to``、``rotate_wrist``、``release``、
        ``back_project``
 
-两种形状对 LLM 呈现的方式相同: 一份 tool schema、一个
+两种形状对 LLM 呈现的方式相同：一份 tool schema、一个
 primitive-driver 方法、调用后一次状态 dump。差异只在 *方法内部做什么*。
 
 添加一个脚本化 primitive
 ------------------------
 
-脚本化 primitive 最快能加进来。套路:
+脚本化 primitive 最快能加进来。套路：
 
 1. **在 primitive driver 上加一个方法。** 在你 env 的 primitive
    driver 类 (如 ``LiberoPrimitives``、``MyRobotPrimitives``) 上加
-   一个方法。接受 tool 的 kwargs, 做实事 —— 通常是一次或多次
+   一个方法。接受 tool 的 kwargs，做实事 —— 通常是一次或多次
    ``self._env.step(...)`` —— 返回一个小的 ``dict`` 日志。
 
    .. code-block:: python
@@ -49,7 +49,7 @@ primitive-driver 方法、调用后一次状态 dump。差异只在 *方法内�
               self._env.step(build_open_drawer_chunk(dx))
           return {"ok": True, "dx": dx}
 
-2. **写 tool schema。** 在 ``toolkit.py`` 的 ``TOOLS_SPEC`` 里加一条:
+2. **写 tool schema。** 在 ``toolkit.py`` 的 ``TOOLS_SPEC`` 里加一条：
 
    .. code-block:: python
 
@@ -64,42 +64,42 @@ primitive-driver 方法、调用后一次状态 dump。差异只在 *方法内�
           },
       }
 
-3. **在 toolkit 中注册。** 让 tool 走 toolkit 的 ``_step`` 辅助函数,
-   这样跑完后会自动重新渲染状态:
+3. **在 toolkit 中注册。** 让 tool 走 toolkit 的 ``_step`` 辅助函数，
+   这样跑完后会自动重新渲染状态：
 
    .. code-block:: python
 
       self.add_tool("open_drawer", OPEN_DRAWER_SPEC,
                     lambda **kw: self._step("open_drawer", **kw))
 
-到这里, ``api``、``claude_code``、``codex`` 三种 planner 都能调它 ——
+到这里，``api``、``claude_code``、``codex`` 三种 planner 都能调它 ——
 不需要改别的。
 
 添加一个 VLA (或其他基于模型的 primitive)
 -----------------------------------------
 
-基于模型的 primitive 要多一些脚手架, 因为模型跑在自己的进程。套路:
+基于模型的 primitive 要多一些脚手架，因为模型跑在自己的进程。套路：
 
 1. **写一个 ``vla_server.py``。** 只持有模型权重和 CUDA 上下文。
-   继承 :class:`rpent.utils.rpc.RpcFacade`, 通过 ``_dispatch`` 暴露
+   继承 :class:`rpent.utils.rpc.RpcFacade`，通过 ``_dispatch`` 暴露
    模型方法 (如 ``predict``):
 
-   - 默认走 **HTTP** (JSON over ``POST /call``), 适合扁平的
+   - 默认走 **HTTP** (JSON over ``POST /call``)，适合扁平的
      ``image + state`` 载荷 (LIBERO / Pi0.5 模式)。
    - 观测是带历史堆叠的嵌套 numpy dict 时切到 **socket RPC**
-     (``--transport socket``, 避免 JSON 重编码开销)。
+     (``--transport socket``，避免 JSON 重编码开销)。
 
    ``RpcFacade.serve`` 负责 transport 绑定、``healthz``、``shutdown``、
    感知父进程死亡 —— 你只写模型相关的方法。
 
-2. **写一个 model client。** 一个小类, 包装一个
+2. **写一个 model client。** 一个小类，包装一个
    :class:`rpent.utils.rpc.RpcClient`
-   (:class:`HttpRpcClient` 或 :class:`SocketRpcClient`),
+   (:class:`HttpRpcClient` 或 :class:`SocketRpcClient`)，
    暴露模型的业务 API。可以参考 ``rpent.utils.vla_client.VLAClient``
    这个 LIBERO 用例。
 
 3. **在 primitive-driver 上加一个方法。** 在 env 的 primitive-driver
-   类里调 model client, 把返回的 chunk 转给 env, 并返回一个日志 dict:
+   类里调 model client，把返回的 chunk 转给 env，并返回一个日志 dict:
 
    .. code-block:: python
 
@@ -131,42 +131,42 @@ primitive-driver 方法、调用后一次状态 dump。差异只在 *方法内�
 跨 run 复用同一个 vla_server
 ----------------------------
 
-模型 server 起动很贵 (加载权重是大头)。Runner 支持指向已经在跑的实例:
+模型 server 起动很贵 (加载权重是大头)。Runner 支持指向已经在跑的实例：
 
 .. code-block:: bash
 
    rpent --env libero --vla-endpoint http://vla-host:8000 ...
 
 把你的 ``vla_server`` 设计成 **task 无关**: LIBERO 参考实现在启动时只
-加载一次模型, 每次 ``predict`` 调用都彼此独立, 因此不需要 reset RPC,
+加载一次模型，每次 ``predict`` 调用都彼此独立，因此不需要 reset RPC，
 这样一个进程就能安全服务很多次连续 run。
 
 新 primitive 的设计原则
 -----------------------
 
-- **Tool 描述意图, 不描述动作。** 好的 tool 名叫 ``pi0_pick``,
-  不叫 ``execute_action_chunk_of_length_20``。LLM 是按名字挑 tool 的,
+- **Tool 描述意图，不描述动作。** 好的 tool 名叫 ``pi0_pick``，
+  不叫 ``execute_action_chunk_of_length_20``。LLM 是按名字挑 tool 的，
   名字要能自解释。
 - **每个 tool 结束时都要 dump 状态。** 下一轮依赖 dump 反映动作后的
-  世界; 别在渲染完成前让 primitive 提前 return。
+  世界；别在渲染完成前让 primitive 提前 return。
 - **返回小 dict。** Tool 返回值以文本形式喂回 LLM。控制在几百字节
-  内; 大 payload (图像、深度、``states.json``) 走 state dump, 以
+  内；大 payload (图像、深度、``states.json``) 走 state dump，以
   image content block 的形式回传。
-- **护栏 (guardrail) 属于 env_server**, 不属于 toolkit。LLM 会用任意
-  参数调任意 tool; 工作空间边界和安全钳位必须在 driver 侧强制执行。
+- **护栏 (guardrail) 属于 env_server**，不属于 toolkit。LLM 会用任意
+  参数调任意 tool；工作空间边界和安全钳位必须在 driver 侧强制执行。
 
 超越 VLA
 --------
 
 同样的模式扩展到非 VLA 的模型 primitive:
 
-- **World Action Model (WAM)** —— 基于想象的 rollout, 产出一个计划
-  让 env 去执行。接法和 VLA 完全一样: 自己的进程、自己的 client。
-- **扩散 planner / MPC** —— 形状一样; 只是 tool 返回的 "动作" 可能
-  是一段 trajectory 而非单个 chunk, 由 ``env_server`` 一步步走完。
+- **World Action Model (WAM)** —— 基于想象的 rollout，产出一个计划
+  让 env 去执行。接法和 VLA 完全一样：自己的进程、自己的 client。
+- **扩散 planner / MPC** —— 形状一样；只是 tool 返回的 "动作" 可能
+  是一段 trajectory 而非单个 chunk，由 ``env_server`` 一步步走完。
 - **多个 primitive 共享一个 server** —— 一个 ``vla_server`` 可以承载
-  多个模型; 由 tool 通过 ``predict`` 的 ``model`` kwarg 选调用哪个
+  多个模型；由 tool 通过 ``predict`` 的 ``model`` kwarg 选调用哪个
   head。
 
-无论形状如何, 框架的契约不变: 模型进程 → model client →
+无论形状如何，框架的契约不变：模型进程 → model client →
 primitive-driver 方法 → tool schema → ``Toolkit.add_tool``。

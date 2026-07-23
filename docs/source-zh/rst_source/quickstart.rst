@@ -8,7 +8,7 @@
 1. 配置 API key 与 checkpoint
 ------------------------------
 
-导出 Anthropic 密钥, 以及 VLA checkpoint 的路径:
+导出 Anthropic 密钥，以及 VLA checkpoint 的路径：
 
 .. code-block:: bash
 
@@ -26,7 +26,7 @@
 ---------------------
 
 用 ``claude_code`` planner 跑单个 LIBERO PRO 任务
-(``libero_object_swap``, 任务 ``2``, 种子 ``0``):
+(``libero_object_swap``，任务 ``2``，种子 ``0``):
 
 .. code-block:: bash
 
@@ -40,7 +40,7 @@
 ------------------------
 
 加上 ``--dashboard`` 会打开浏览器监控页面。它会先展示一个 launcher
-页面让你确认配置, 然后开始 streaming: agent 的 reasoning、实时相机
+页面让你确认配置，然后开始 streaming: agent 的 reasoning、实时相机
 与 Pi0 视图、动作时间线、剪辑回放。加上 ``--dashboard-language zh-cn``
 切换到中文 UI。
 
@@ -66,7 +66,7 @@
      - 环境后端。当前支持 ``libero``。
    * - ``--suite``
      - 必填
-     - 任务套件, 如 ``libero_object_task``、``libero_spatial_swap``
+     - 任务套件，如 ``libero_object_task``、``libero_spatial_swap``
    * - ``--task``
      - 必填
      - 套件内的任务 id
@@ -88,13 +88,13 @@
      - LLM 每次回复的最大 token 数
    * - ``--no-images``
      - 关
-     - 纯文本模式: 不向模型发送图片字节 (用于不支持图片输入的模型)
+     - 纯文本模式：不向模型发送图片字节 (用于不支持图片输入的模型)
    * - ``--max-episode-steps``
      - ``10000``
      - Env 最大 step 数
    * - ``--libero-type``
      - ``LIBERO_TYPE`` 或 ``pro``
-     - LIBERO 变体: ``standard`` | ``pro`` | ``plus``
+     - LIBERO 变体：``standard`` | ``pro`` | ``plus``
    * - ``--cuda-device``
      - 继承
      - 暴露给 env / vla server 的 GPU 设备
@@ -103,11 +103,11 @@
      - 为本次运行启动本地 dashboard
    * - ``--dashboard-language``
      - ``en``
-     - Dashboard UI 语言: ``en`` | ``zh-cn``
+     - Dashboard UI 语言：``en`` | ``zh-cn``
    * - ``--env-endpoint``
      - —(自动 spawn)
      - 已在运行的 env_server 的 ``[protocol://]host:port``
-       (``protocol=http|socket``, 默认 ``http``). 留空则本地起一个。
+       (``protocol=http|socket``，默认 ``http``). 留空则本地起一个。
    * - ``--vla-endpoint``
      - —(自动 spawn)
      - 已在运行的 vla_server 的 ``[protocol://]host:port`` (同上).
@@ -116,15 +116,15 @@
 跑起来后应该看到什么
 --------------------
 
-一次成功的运行:
+一次成功的运行：
 
 1. env_server / vla_server 起来后各打印一行
    ``RPC server listening on http://127.0.0.1:<port>``。
 2. 每一轮 agent 的 reasoning 会输出到终端 (或 stream 到 dashboard)。
 3. 当 LLM 调用 ``finish(status, summary)`` 且 ``status="success"``
-   (或 ``"failure"`` / ``"stuck"``) 时结束; 或者触达
+   (或 ``"failure"`` / ``"stuck"``) 时结束；或者触达
    ``--max-turns`` / ``--max-episode-steps`` 时结束。
 4. 写出 ``<output_dir>/transcript_*.json`` (完整 turn-by-turn 记录) 和
    ``<output_dir>/episode.mp4`` (渲染出的 rollout)。
 
-出问题时, 参考 :doc:`installation` 页底部提到的三份日志文件。
+出问题时，参考 :doc:`installation` 页底部提到的三份日志文件。

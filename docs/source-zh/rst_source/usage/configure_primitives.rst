@@ -1,22 +1,21 @@
 Action Primitives
 =================
 
-Planner 决定 *做什么*，而 **action primitive** 决定 *怎么做*。所谓 primitive
-就是把一次 tool 调用 (``pi0_pick``、``move_to``、``set_gripper``…) 变成
-一段可以直接送给 environment 执行的动作。
+Planner 决定 *做什么*，而 **action primitive** 决定 *怎么做*。所谓 primitive，
+就是把一次工具调用（比如 ``pi0_pick``、``move_to``、``set_gripper``）落地成
+一段能直接交给环境执行的动作。
 
-RPent 内置支持两大类 primitive:
+RPent 内置支持两大类 primitive。
 
-- **VLA 策略** (Vision-Language-Action 模型)。跑在专门的 ``vla_server``
-  进程里，把 GPU 权重与物理引擎隔离；toolkit 通过 per-env 的 model
-  client 调用它。例如 Pi0.5 (LIBERO)、RLDX-1 (RoboCasa)。
-- **脚本化 primitive**。确定性运动，如 ``move_to``、``rotate_wrist``、
-  ``release`` 或 ``back_project``。它们放在 agent 侧 (不需要 VLA
-  权重)，通过 ``env_server`` 的 RPC 调用。
+- **VLA 策略**，即视觉-语言-动作模型。它跑在专门的 ``vla_server`` 进程里，
+  把 GPU 权重和物理引擎隔开，toolkit 通过每个环境各自的模型客户端来调用它。
+  Pi0.5（用于 LIBERO）和 RLDX-1（用于 RoboCasa）都属于这一类。
+- **脚本化 primitive**，即确定性的运动，比如 ``move_to``、``rotate_wrist``、
+  ``release``、``back_project``。它们不需要 VLA 权重，跑在 agent 侧，通过
+  ``env_server`` 的 RPC 调用。
 
-具体到每一种机器人的配置 (哪个 VLA、checkpoint 路径、tool surface)，
-参见对应的 environment 页：:doc:`libero`、:doc:`robocasa`、
-:doc:`franka`、:doc:`so101`。
+每种机器人具体怎么配置——用哪个 VLA、检查点放在哪、暴露哪些工具——参见对应的
+环境页面：:doc:`libero`、:doc:`robocasa`、:doc:`franka`、:doc:`so101`。
 
 不同 environment 用哪个 VLA
 ---------------------------
@@ -46,9 +45,9 @@ RPent 内置支持两大类 primitive:
      - socket RPC
      - ``robots/so101/vla_server.py`` *(规划中)*
 
-VLA server 用同一套 ``predict`` / ``healthz`` 方法，同时支持 HTTP (JSON)
-与 socket (pickle-framed) 两种传输，通过 ``--transport {http,socket}``
-选择 (默认 ``http``)。设计理由参见 :doc:`../development/add_robot`。
+所有 VLA server 都用同一套 ``predict`` 和 ``healthz`` 方法，同时支持 HTTP（走
+JSON）和 socket（pickle 分帧）两种传输，用 ``--transport {http,socket}`` 选择，
+默认是 ``http``。这么设计的理由参见 :doc:`../development/add_robot`。
 
 复用一个已在运行的 VLA server
 -----------------------------
@@ -62,13 +61,12 @@ VLA server 用同一套 ``predict`` / ``healthz`` 方法，同时支持 HTTP (JS
      --suite libero_object_swap --task 2 --seed 0 --planner api \
      --model anthropic:claude-opus-4-8
 
-``--vla-endpoint`` 接受 ``[protocol://]host:port`` 格式，protocol 可为
-``http`` (默认) 或 ``socket``。同样的规则适用于 ``--env-endpoint``
-(复用已有的 env_server)。
+``--vla-endpoint`` 接受 ``[protocol://]host:port`` 格式，其中 protocol 可以是
+``http`` 或 ``socket``，默认 ``http``。复用已有 env_server 的 ``--env-endpoint``
+也遵循同样的规则。
 
 新增全新的 primitive 家族
 -------------------------
 
-如果要接入的既不是 VLA 也不是脚本化运动 —— 比如一个
-WAM (World Action Model)、扩散规划器、或 MPC primitive ——
-参见 :doc:`../development/add_primitive`。
+如果要接入的东西既不是 VLA、也不是脚本化运动，比如一个世界动作模型
+（WAM）、扩散规划器或 MPC primitive，参见 :doc:`../development/add_primitive`。

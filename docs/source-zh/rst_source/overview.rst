@@ -1,7 +1,7 @@
 概览
 ====
 
-**RPent (Recursive Physical Agent)** 是一个用于构建具身智能体的开放框架,
+**RPent (Recursive Physical Agent)** 是一个用于构建具身智能体的开源框架,
 让智能体通过与物理世界的递归交互持续演进。RPent 不预设某个具体的基础模型,
 而是提供一个递归智能体框架, 将异构智能能力 —— 感知 (perception)、推理
 (reasoning)、记忆 (memory)、执行 (execution)、自我演进 (self-evolution)

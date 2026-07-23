@@ -26,7 +26,7 @@ emits actions), that model runs in a **third, separate process** — never insid
 the env_server:
 
 - **VLA side** (``robots/<env>/vla_server.py``) — owns ONLY the VLA policy
-  (the GPU model). It exposes ``vla_load`` / ``vla_infer`` / ``vla_reset`` over
+  (the GPU model). It exposes a single ``predict`` inference RPC over
   its own RPC/HTTP endpoint. It imports NO simulator.
 - The toolkit receives a **model client** (e.g. ``VLAClient`` for LIBERO/Pi0.5,
   ``RLDXVLAClient`` for RoboCasa/RLDX-1) as its ``model`` argument, alongside
@@ -85,9 +85,9 @@ two factories:
    def get_env_spec() -> EnvSpec:
        return EnvSpec(name="myenv", prompts=PromptBundle(system=system_prompt, user=user_prompt))
 
-   def get_toolkit(*, primitives_kwargs: dict[str, Any], video_path: str | None = None):
+   def get_toolkit(*, primitives_kwargs: dict[str, Any], video_path: str | None = None, dashboard: Any = None):
        from robots.myenv.toolkit import MyEnvToolkit
-       return MyEnvToolkit(primitives_kwargs=primitives_kwargs, video_path=video_path)
+       return MyEnvToolkit(primitives_kwargs=primitives_kwargs, video_path=video_path, dashboard=dashboard)
 
 That's the entire registration step — ``_resolve_env(name)`` does an
 ``importlib.import_module(f"robots.{name}")``, so dropping the package under
@@ -107,7 +107,7 @@ process and answers them.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The base contract is two gym-style methods (``reset``, ``step``); add whatever
-your env needs on top (LIBERO has ``chunk_step``, ``render_agentview``,
+your env needs on top (LIBERO has ``chunk_step``, ``render_camera``,
 ``get_camera_meta``, ``cached_image``, …). Each method forwards through
 ``RpcClient.call("<rpc-name>", args=..., kwargs=...)`` with a per-method
 timeout. Keep names stable — the driver-side dispatcher matches by name.
@@ -162,10 +162,12 @@ torch).
 ``healthz`` / ``shutdown`` methods, parent-death detection, and clean
 teardown — you only write the business methods.
 
-``rpent/cli/main.py`` currently imports ``LiberoEnvClient`` and the LIBERO env_server
-script path directly. Adding a new env means either branching on
-``args.env_name`` to pick the client class + driver script, or factoring those
-two callsites out behind a per-env helper.
+Wiring a new env into ``rpent/cli/main.py`` currently takes three concrete
+steps: (a) add the env name to the ``--env`` ``choices`` list; (b) add an
+``_init_<env>(...)`` builder mirroring ``_init_libero`` that spawns the env /
+vla daemons and returns the ``primitives_kwargs``; (c) add a matching branch in
+``_build_env_parser`` (which currently asserts ``False`` on any non-``libero``
+env).
 
 2. ``prompt_bundle.py``
 -----------------------
@@ -221,8 +223,10 @@ per-run state. It exposes one method per primitive tool (``move_to``,
 
 **Tool schemas + handler helpers** — a module-level ``TOOLS_SPEC`` list of
 Anthropic-shaped schema dicts (``name``, ``description``, ``input_schema``),
-plus any free functions referenced by the toolkit (e.g. ``view_driver_state``,
-``back_project``, ``finish``).
+plus any env-specific free functions referenced by the toolkit (e.g.
+``view_driver_state``, ``back_project``). Common tools like ``finish`` are
+defined in ``rpent/tools/common.py`` and auto-registered by the base
+``Toolkit`` — they are not redefined per env.
 
 **Per-step state dump** — ``dump_state(driver, output_dir, step_idx, log)``
 serializes whatever state the agent will read back via the ``view_*`` tools
@@ -230,12 +234,12 @@ serializes whatever state the agent will read back via the ``view_*`` tools
 
 **Toolkit class** — subclass ``rpent.tools.toolkit.Toolkit``:
 
-- build the primitive driver in ``__init__`` via ``init_driver_clean`` (wipes
+- build the primitive driver in ``__init__`` via ``init_primitives_clean`` (wipes
   stale ``images/`` etc., constructs the primitives, dumps step 0),
 - register each tool with ``self.add_tool(name, spec, handler)`` — stateless
-  readers (``view_driver_state``, ``finish``, …) bind directly to module-level
+  readers (``view_driver_state``, ``back_project``, …) bind directly to module-level
   functions; primitive tools route through ``_step(name, **kwargs)`` which
-  calls ``getattr(self._driver, name)(**kwargs)`` and re-renders state,
+  calls ``getattr(self._primitives, name)(**kwargs)`` and re-renders state,
 - override ``close()`` to flush any agent-side artifacts (e.g. the LIBERO
   toolkit saves the agentview MP4 there).
 

@@ -86,7 +86,7 @@ tool-calling 循环 *如何* 被编排, 以及能触达哪些 LLM / SDK 上有�
 
 - ``--model`` **不要** 加 provider 前缀 —— 直接写 ``claude-opus-4-8``。
 - 子进程有 wall-clock 上限 (``--planner-timeout-s``, 默认取
-  ``CODEX_TIMEOUT_S`` / ``CELL_TIMEOUT_S`` / ``1200``)。
+  ``CELL_TIMEOUT_S`` / ``1200``)。
 - 通过 ``--claude-code-max-budget-usd`` 设置美元预算 (默认取
   ``MAX_BUDGET_USD`` 环境变量或 ``10``)。
 - Claude Code 需要单独安装和登录; 见
@@ -120,20 +120,24 @@ tool-calling 循环 *如何* 被编排, 以及能触达哪些 LLM / SDK 上有�
 .. code-block:: python
 
    # rpent/planner/mybrain.py
-   from rpent.planner.base import Planner
+   from rpent.planner.base import Planner, PlannerResult
 
    class MyPlanner(Planner):
-       async def run(self, *, prompt_bundle, toolkit, output_dir, ...):
+       def solve(self, *, system_prompt: str, user_message: str,
+                 toolkit, max_turns: int, input_queue=None) -> PlannerResult:
            # 自己驱动 tool-calling 循环。
-           # 用 toolkit.dispatch(tool_name, **kwargs) 调工具。
+           # tools_spec = toolkit.get_tools_spec()   # LLM 看到的 tool schema
+           # result = toolkit.execute_tool(name, input_dict)  # 返回一个 ToolResult
            ...
 
 任何 planner 必须:
 
-1. 拿到渲染好的 ``prompt_bundle`` (来自
-   ``robots/<env>/prompt_bundle.py`` 的 system + user 分节)。
-2. 循环处理 LLM 回复、抽出 tool call、通过 ``toolkit.dispatch(...)``
-   转发到 toolkit。
+1. 接收已经渲染好的 ``system_prompt`` 和 ``user_message`` 字符串
+   (CLI 在调用 ``solve`` 之前, 从 ``robots/<env>/prompt_bundle.py``
+   渲染得到)。
+2. 循环处理 LLM 回复、抽出 tool call、通过
+   ``toolkit.execute_tool(name, input_dict)`` 转发到 toolkit
+   (tool schema 来自 ``toolkit.get_tools_spec()``)。
 3. 把每个 tool 的返回值以 multimodal 上下文 (text + images) 的形式
    喂回 LLM。
 4. 遇到 ``finish`` 或达到上限时终止。

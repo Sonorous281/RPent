@@ -112,8 +112,9 @@ model runs in its own process. Pattern:
    .. code-block:: python
 
       def mymodel_pick(self, target: str) -> dict:
-          obs = self._env.get_obs()
-          chunk = self._model.predict(obs, instruction=f"pick {target}")
+          env_obs = self._env.raw_obs()
+          env_obs["task_descriptions"] = f"pick {target}"
+          chunk, _ = self._model.predict_action_batch(env_obs, mode="eval")
           self._env.chunk_step(chunk)
           return {"model": "mymodel", "target": target}
 
@@ -125,11 +126,12 @@ model runs in its own process. Pattern:
 
    .. code-block:: python
 
-      def get_toolkit(*, primitives_kwargs, video_path=None):
+      def get_toolkit(*, primitives_kwargs, video_path=None, dashboard=None):
           from robots.myrobot.toolkit import MyRobotToolkit
           return MyRobotToolkit(
               primitives_kwargs=primitives_kwargs,
               video_path=video_path,
+              dashboard=dashboard,
           )
 
    And ``rpent/cli/main.py`` will pass in ``{"env": MyRobotEnvClient(...),
@@ -145,8 +147,9 @@ runner supports pointing at an already-running one:
 
    rpent --env libero --vla-endpoint http://vla-host:8000 ...
 
-Design your ``vla_server`` to be **stateless across tasks** — reset
-its per-episode state through an explicit ``vla_reset`` RPC — so a
+Design your ``vla_server`` to be **stateless across tasks**: the
+LIBERO reference loads the model once at startup and treats every
+``predict`` call as independent, so no reset RPC is needed and a
 single process can serve many sequential runs safely.
 
 Design principles for a new primitive
@@ -179,7 +182,7 @@ The same pattern extends to non-VLA model primitives:
   ``env_server`` steps it out.
 - **Multiple primitives sharing one server** — a single
   ``vla_server`` can host several models; the tool decides which
-  head to call via a ``model`` kwarg on ``vla_infer``.
+  head to call via a ``model`` kwarg on ``predict``.
 
 Whatever the shape, the framework contract is unchanged: model
 process → model client → primitive-driver method → tool schema →

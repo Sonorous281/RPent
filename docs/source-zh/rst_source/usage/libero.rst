@@ -78,7 +78,7 @@ Pi0.5 只需要一件事: 磁盘上的 checkpoint。通过 ``PI05_CHECKPOINT_PAT
 - **env_server** (``robots/libero/env_server.py``) —— 持有 LIBERO
   MuJoCo env 与 EGL 渲染。通过 RPC 传输 (默认 HTTP; 加
   ``--transport socket`` 走 pickle-framed socket) 对外暴露
-  ``reset``、``step``、``chunk_step``、``render_agentview``、
+  ``reset``、``step``、``chunk_step``、``render_camera(camera_name="agentview")``、
   ``get_camera_meta``、``cached_image``…
 - **vla_server** (``robots/libero/vla_server.py``) —— 持有 Pi0.5
   权重, 通过同一套 RPC 传输 (HTTP 或 socket) 暴露 ``predict``。
@@ -91,17 +91,32 @@ Planner 能看到的工具
 
 LIBERO toolkit 默认暴露:
 
-- ``pi0_pick(target)`` —— 调用 Pi0.5 生成一次针对 ``target`` (自然语言
-  描述的物体) 的抓取动作块。
-- ``move_to(dx, dy, dz)`` —— 脚本化 Cartesian 运动 (确定性, 不走 VLA)。
-- ``rotate_wrist(delta_rad)`` —— 脚本化的腕关节旋转。
+- ``pi0_pick(prompt)`` —— 调用 Pi0.5 生成一次由 ``prompt`` (自然语言
+  抓取指令) 驱动的抓取动作块。
+- ``pi0_doubled(prompt)`` —— 调用 Pi0.5 生成一次由 ``prompt`` 驱动的
+  非抓取接触动作块 (如拧旋钮、开关炉灶、短推)。
+- ``move_to(xyz)`` —— 脚本化 Cartesian 运动, 移动到绝对世界坐标系目标
+  ``[x, y, z]`` (单位: 米) (确定性, 不走 VLA)。
+- ``move_pose(xyz)`` —— 脚本化 Cartesian 运动, 同时协同调整位置与腕部
+  姿态 (pitch + yaw); 用于穿入柜门前 / 低矮层架等姿态, 避免解耦伺服卡死。
+- ``rotate_wrist(target_yaw / delta_yaw)`` —— 脚本化的腕关节旋转
+  (绕世界 Z 轴); 给绝对 ``target_yaw`` 或相对 ``delta_yaw`` (弧度)。
+- ``rotate_pitch(target_pitch / delta_pitch)`` —— 脚本化的夹爪俯仰
+  (绕世界 X 轴); 给绝对 ``target_pitch`` 或相对 ``delta_pitch`` (弧度)。
 - ``release()`` —— 打开夹爪。
-- ``back_project(pixel_x, pixel_y)`` —— 把 agentview 图像上的像素点
-  反投影到世界坐标 3D 点。
+- ``set_gripper(gripper, steps)`` —— 保持当前姿态, 驱动夹爪指令
+  ``steps`` 个 env step (如搬运途中收紧抓握)。
+- ``back_project(row, col)`` —— 把图像像素 (``row`` 0 = 顶部,
+  ``col`` 0 = 左侧) 反投影到世界坐标 3D 点。
+- ``segment(prompt)`` —— 可选的分割辅助工具, 在已有图像 artifact 上
+  定位物体 (未配置服务时回退到人工定位)。
 - ``view_driver_state()`` —— 强制刷新一次状态 dump (图像、深度、
   camera meta、``states.json``)。
-- ``finish(status)`` —— 以 ``success`` / ``failure`` / ``stuck``
-  结束当前 episode。
+- ``view_camera_meta(camera)`` —— 读取相机标定元数据 (``agentview``
+  或 ``wrist``) 用于定位。
+- ``finish(status, summary)`` —— 结束当前 episode; ``status`` 为
+  ``success`` / ``failure`` / ``stuck``, ``summary`` 为简短的自然语言
+  总结 (两者都必填)。
 
 每个工具跑完后都会重新渲染世界, 所以下一轮 agent 上下文反映的是
 动作后的状态。

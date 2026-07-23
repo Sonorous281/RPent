@@ -104,8 +104,9 @@ primitive-driver 方法、调用后一次状态 dump。差异只在 *方法内�
    .. code-block:: python
 
       def mymodel_pick(self, target: str) -> dict:
-          obs = self._env.get_obs()
-          chunk = self._model.predict(obs, instruction=f"pick {target}")
+          env_obs = self._env.raw_obs()
+          env_obs["task_descriptions"] = f"pick {target}"
+          chunk, _ = self._model.predict_action_batch(env_obs, mode="eval")
           self._env.chunk_step(chunk)
           return {"model": "mymodel", "target": target}
 
@@ -116,11 +117,12 @@ primitive-driver 方法、调用后一次状态 dump。差异只在 *方法内�
 
    .. code-block:: python
 
-      def get_toolkit(*, primitives_kwargs, video_path=None):
+      def get_toolkit(*, primitives_kwargs, video_path=None, dashboard=None):
           from robots.myrobot.toolkit import MyRobotToolkit
           return MyRobotToolkit(
               primitives_kwargs=primitives_kwargs,
               video_path=video_path,
+              dashboard=dashboard,
           )
 
    ``rpent/cli/main.py`` 会传入 ``{"env": MyRobotEnvClient(...),
@@ -135,8 +137,9 @@ primitive-driver 方法、调用后一次状态 dump。差异只在 *方法内�
 
    rpent --env libero --vla-endpoint http://vla-host:8000 ...
 
-把你的 ``vla_server`` 设计成 **task 无关**——用一个显式的 ``vla_reset``
-RPC 清 per-episode 状态——这样一个进程就能安全服务很多次连续 run。
+把你的 ``vla_server`` 设计成 **task 无关**: LIBERO 参考实现在启动时只
+加载一次模型, 每次 ``predict`` 调用都彼此独立, 因此不需要 reset RPC,
+这样一个进程就能安全服务很多次连续 run。
 
 新 primitive 的设计原则
 -----------------------
@@ -162,7 +165,7 @@ RPC 清 per-episode 状态——这样一个进程就能安全服务很多次连
 - **扩散 planner / MPC** —— 形状一样; 只是 tool 返回的 "动作" 可能
   是一段 trajectory 而非单个 chunk, 由 ``env_server`` 一步步走完。
 - **多个 primitive 共享一个 server** —— 一个 ``vla_server`` 可以承载
-  多个模型; 由 tool 通过 ``vla_infer`` 的 ``model`` kwarg 选调用哪个
+  多个模型; 由 tool 通过 ``predict`` 的 ``model`` kwarg 选调用哪个
   head。
 
 无论形状如何, 框架的契约不变: 模型进程 → model client →

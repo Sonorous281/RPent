@@ -1,8 +1,13 @@
 RoboCasa
 ========
 
+.. note::
+
+   RoboCasa 支持**尚在开发中**，暂不可用。下文描述的是*计划中*的集成方案——
+   仓库中目前还没有 ``robots/robocasa/`` 包。当前状态请见 Feature Matrix。
+
 `RoboCasa <https://robocasa.ai>`_ 是厨房尺度、长时序的操作 environment。
-在 RPent 中它由 **RLDX-1** VLA 策略驱动, 通过 pickle-framed socket RPC
+在 RPent 中它将由 **RLDX-1** VLA 策略驱动, 通过 pickle-framed socket RPC
 (而非 LIBERO 用的 HTTP) 提供服务 —— 因为 RLDX 的观测是历史堆叠的嵌套
 numpy dict, socket 天然承载, HTTP 反而需要额外设计 wire 格式。
 

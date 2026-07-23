@@ -1,17 +1,47 @@
 System Internals
 ================
 
-This page is the implementation-level view of RPent. It walks through
-what the three processes actually own, how they communicate, and how
-the pieces slot together under ``rpent/`` and ``robots/``. For a
-higher-level framing, see :doc:`../overview`.
-
 .. raw:: html
 
    <div style="text-align: center;">
-     <img src="../../architecture.svg" alt="RPent three-process architecture"
+     <img src="https://github.com/RLinf/misc/raw/main/pic/rpent_framework.png" alt="RPent framework"
           style="max-width: 95%; height: auto;" />
    </div>
+
+Framework overview
+------------------
+
+**RPent (Recursive Physical Agent)** is an open framework for building
+embodied agents that continuously evolve through recursive interaction
+with the physical world. Rather than prescribing a single foundation
+model, RPent provides a recursive agent framework that harnesses
+heterogeneous intelligence — perception, reasoning, memory, execution,
+and self-evolution — into a unified physical agent. Through continuous
+interaction, reflection, and adaptation, RPent enables physical agents
+to acquire new capabilities and evolve beyond their initial design.
+
+RPent is built upon three core design principles:
+
+- **Service-oriented.** Capabilities are deployed as reusable services
+  (e.g. the VLA policy server, the environment server, the memory
+  corpus) that can be independently scaled, restarted, or replaced.
+- **Standardized.** Every service connects through unified interfaces
+  — a single ``Planner`` protocol, a common ``Toolkit`` API, and a
+  shared RPC substrate — so heterogeneous intelligence modules compose
+  without glue code.
+- **Composable.** Services are flexibly assembled into diverse physical
+  agents: swap the planner, mix primitives from different VLAs, plug in
+  a new simulator, or add memory — all without touching the rest of the
+  stack.
+
+Together, these principles allow RPent to move beyond traditional robot
+control frameworks and establish an *agentic infrastructure for the
+physical world*, where intelligence is not only deployed, but
+continuously built, expanded, and evolved.
+
+The sections below walk through how this architecture is implemented:
+what the three processes own, how they communicate, and how the pieces
+slot together under ``rpent/`` and ``robots/``.
 
 Key features
 ------------
@@ -21,11 +51,11 @@ around; the sections below then show how each is implemented.)*
 
 - **LLM-in-the-loop control.** The LLM is not fine-tuned — it drives
   the robot purely by calling tools (``pi0_pick``, ``move_to``,
-  ``rotate_wrist``, ``back_project``, ``finish``, …). Each tool
+  ``rotate_wrist``, ``back_project``, ``finish``, etc.). Each tool
   result is fed back as multimodal context (text + rendered images),
-  so the model reasons over what it actually sees.
+  so the model reasons over what it actually observes.
 - **Three-process architecture.** The **agent process** (LLM planner
-  + toolkit, no ``torch``), the **env_server** (simulator + EGL
+  + toolkit, no GPU dependency), the **env_server** (simulator + EGL
   rendering), and the **vla_server** (GPU policy weights) are
   separate processes wired by lightweight RPC. Either heavyweight
   process can be restarted, moved to another GPU, or pointed at a
@@ -43,10 +73,11 @@ around; the sections below then show how each is implemented.)*
     the toolkit as an in-process MCP server.
   - ``codex`` — the OpenAI Codex SDK, bridged to the toolkit over an
     HTTP MCP server.
-- **Two environments, two VLAs, one contract.** LIBERO (Pi0.5 over
-  HTTP) and RoboCasa (RLDX-1 over socket-RPC) share the exact same
-  env/vla process split; only the wire codec differs, chosen to fit
-  each env's observation shape.
+- **One contract, many environments.** The env/vla process split is a
+  universal contract: LIBERO (Pi0.5 over HTTP) is the shipped reference;
+  RoboCasa (RLDX-1 over socket-RPC) is in progress. Adding a new
+  environment means implementing the same interface — only the wire
+  codec changes to fit each env's observation shape.
 - **Live dashboard.** An optional ``--dashboard`` starts a local
   FastAPI monitor that streams the agent's reasoning, real-time
   camera / Pi0 views, an action timeline, and clip replays — with a
@@ -62,7 +93,7 @@ A single run is an LLM-in-the-loop cycle:
 1. The LLM reasons about the task and calls a tool
    (e.g. ``pi0_pick``).
 2. The tool's **primitive driver** asks the ``vla_server`` for an
-   action chunk (``predict`` / ``vla_infer``).
+   action chunk (``predict``).
 3. The ``env_server`` executes that chunk (``chunk_step`` for LIBERO,
    stepwise ``step`` for RoboCasa).
 4. The env renders the resulting observation and camera frames.
@@ -96,8 +127,8 @@ The code that implements the framework is split cleanly by concern:
      (so101/)        # SO-101 driver — in progress.
    scripts/          # Setup scripts (LIBERO PRO/PLUS, codex proxy).
 
-The runner (``rpent/cli/main.py``)
-----------------------------------
+The runner
+----------
 
 ``rpent/cli/main.py`` is the choreographer. On each invocation it:
 
@@ -137,7 +168,7 @@ factories the package exposes:
 
    # robots/myenv/__init__.py
    def get_env_spec() -> EnvSpec: ...
-   def get_toolkit(*, primitives_kwargs, video_path=None): ...
+   def get_toolkit(*, primitives_kwargs, video_path=None, dashboard=None): ...
 
 There is **no central list** of envs. Dropping a package under
 ``robots/`` is enough. This is the mechanism you use to add a new
@@ -149,9 +180,12 @@ Planner interface
 Every planner implements the same tiny interface (see
 ``rpent.planner.base``):
 
-- Take the rendered ``prompt_bundle`` (system + user sections).
-- Take a ``toolkit`` (which exposes tool schemas + a ``dispatch``
-  method).
+- Accept already-rendered ``system_prompt`` and ``user_message``
+  strings (the CLI renders them from the env's prompt bundle before
+  calling ``solve``).
+- Accept a ``toolkit`` (which exposes tool schemas via
+  ``get_tools_spec()`` and dispatches calls via
+  ``execute_tool(name, input_dict)``).
 - Drive the tool-calling loop.
 - Feed each tool result back as multimodal context.
 - Terminate on ``finish`` or when caps are hit.

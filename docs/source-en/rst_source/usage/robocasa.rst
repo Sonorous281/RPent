@@ -1,8 +1,14 @@
 RoboCasa
 ========
 
+.. note::
+
+   RoboCasa support is **in progress** and not yet available. The design
+   described below is the *planned* integration — there is no
+   ``robots/robocasa/`` package yet. See the Feature Matrix for current status.
+
 `RoboCasa <https://robocasa.ai>`_ is the kitchen-scale, long-horizon
-manipulation environment. In RPent it is driven by the **RLDX-1** VLA
+manipulation environment. In RPent it **will be** driven by the **RLDX-1** VLA
 policy, served over a pickle-framed socket RPC (rather than HTTP as
 LIBERO uses), because RLDX observations are history-stacked nested
 numpy dicts that ride sockets natively.

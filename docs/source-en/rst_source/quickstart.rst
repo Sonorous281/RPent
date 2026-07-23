@@ -123,7 +123,8 @@ A successful run:
 1. Prints ``RPC server listening on http://127.0.0.1:<port>`` once each
    subprocess (env_server, vla_server) is up.
 2. Prints per-turn agent reasoning (or streams it to the dashboard).
-3. Ends when the LLM calls ``finish(success=True)``, or hits
+3. Ends when the LLM calls ``finish(status, summary)`` with
+   ``status="success"`` (or ``"failure"`` / ``"stuck"``), or hits
    ``--max-turns`` / ``--max-episode-steps``.
 4. Writes ``<output_dir>/transcript_*.json`` with the full turn-by-turn
    record and ``<output_dir>/episode.mp4`` with the rendered rollout.

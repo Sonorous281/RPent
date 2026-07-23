@@ -9,7 +9,7 @@ Prerequisites
 
 - Linux with an NVIDIA GPU (LIBERO renders on EGL).
 - CUDA 12.x drivers matching your GPU.
-- Python 3.10–3.11.
+- Python 3.10–3.12.
 - ``git``, ``bash``, and a working C toolchain for MuJoCo / robosuite.
 
 You will also want:

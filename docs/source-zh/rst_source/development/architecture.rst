@@ -1,16 +1,38 @@
 系统设计
 ========
 
-本页从实现层面看 RPent —— 三个进程各自持有什么、如何通信,
-以及 ``rpent/`` 与 ``robots/`` 下的代码如何组织。更高层的框架介绍
-见 :doc:`../overview`。
-
 .. raw:: html
 
    <div style="text-align: center;">
-     <img src="../../architecture.svg" alt="RPent 三进程架构"
+     <img src="https://github.com/RLinf/misc/raw/main/pic/rpent_framework.png" alt="RPent 框架"
           style="max-width: 95%; height: auto;" />
    </div>
+
+框架概览
+--------
+
+**RPent (Recursive Physical Agent)** 是一个用于构建具身智能体的开源框架,
+通过与物理世界的递归交互实现持续进化。RPent 不预设某一个基础模型, 而是提供
+一套递归 agent 框架, 将异构智能 —— 感知、推理、记忆、执行和自我进化 ——
+融合为一个统一的物理智能体。通过持续的交互、反思和适应, RPent 使物理智能体
+能够习得新能力, 超越其初始设计。
+
+RPent 建立在三条核心设计原则之上:
+
+- **服务化 (Service-oriented)。** 能力被部署为可复用的服务 (如 VLA 策略
+  server、环境 server、memory 语料库), 可以独立扩缩容、重启或替换。
+- **标准化 (Standardized)。** 所有服务通过统一的接口连接 —— 一套
+  ``Planner`` 协议、一套通用 ``Toolkit`` API、一套共享 RPC 底座 ——
+  使异构智能模块无需胶水代码即可组合。
+- **可组合 (Composable)。** 服务可被灵活组装为多样的物理智能体: 换
+  planner、混用来自不同 VLA 的 primitive、接入新仿真器、或添加 memory ——
+  都不需要动其余部分。
+
+这三条原则使 RPent 超越传统机器人控制框架, 建立起一种面向物理世界的
+*agentic infrastructure*: 智能不仅被部署, 还被持续地构建、扩展和进化。
+
+下面各节详述这套架构如何落地: 三个进程各自持有什么、如何通信, 以及
+``rpent/`` 与 ``robots/`` 下的代码如何组织。
 
 关键特性
 --------
@@ -19,10 +41,10 @@
 
 - **LLM-in-the-loop 控制。** LLM 不做微调 —— 它纯粹通过调工具
   (``pi0_pick``、``move_to``、``rotate_wrist``、``back_project``、
-  ``finish``…) 来驱动机器人。每个工具的返回都以多模态上下文
-  (文本 + 渲染图) 喂回, 让模型基于 *看到的世界* 推理。
-- **三进程架构。** **Agent 进程** (LLM planner + toolkit, 不 import
-  ``torch``)、**env_server** (仿真器 + EGL 渲染)、**vla_server**
+  ``finish`` 等) 来驱动机器人。每个工具的返回都以多模态上下文
+  (文本 + 渲染图) 喂回, 让模型基于实际观测到的世界推理。
+- **三进程架构。** **Agent 进程** (LLM planner + toolkit, 无 GPU
+  依赖)、**env_server** (仿真器 + EGL 渲染)、**vla_server**
   (GPU 策略权重) 是三个独立进程, 用轻量 RPC 串起来。任一重量级
   进程都可以独立重启、迁到另一张 GPU、或指向远程主机。
 - **可插拔的 reasoning brain (planner)。** 用一个 flag ——
@@ -37,9 +59,10 @@
     把 toolkit 暴露为 in-process MCP server。
   - ``codex`` —— OpenAI Codex SDK, 通过 HTTP MCP server 桥接到
     toolkit。
-- **两个 environment、两个 VLA、一份契约。** LIBERO (Pi0.5 走 HTTP) 和
-  RoboCasa (RLDX-1 走 socket-RPC) 共享 *完全一致* 的 env/vla 进程划分;
-  只有传输协议不同, 且是按各自 observation 形状选出来的。
+- **一份契约、多个 environment。** env/vla 进程拆分是一份通用契约:
+  LIBERO (Pi0.5 走 HTTP) 是已发布的参考实现; RoboCasa (RLDX-1 走
+  socket-RPC) 正在开发中。添加新环境只需实现相同接口 —— 只有传输协议
+  随各 env 的 observation 形状改变。
 - **实时 dashboard。** 可选的 ``--dashboard`` 会起一个本地 FastAPI
   监控页, 实时展示 agent 的 reasoning、相机 / Pi0 视图、动作时间线、
   剪辑回放 —— 提供 **双语 UI** (``--dashboard-language {en, zh-cn}``)。
@@ -53,7 +76,7 @@
 
 1. LLM 分析任务、调一个工具 (如 ``pi0_pick``)。
 2. 工具的 **primitive driver** 向 ``vla_server`` 请求一个 action
-   chunk (``predict`` / ``vla_infer``)。
+   chunk (``predict``)。
 3. ``env_server`` 执行这段 chunk (LIBERO 是 ``chunk_step``, RoboCasa
    是逐步 ``step``)。
 4. Env 渲染出新的 observation 与相机帧。
@@ -85,8 +108,8 @@
      (so101/)        # SO-101 driver —— 研发中。
    scripts/          # 安装脚本 (LIBERO PRO/PLUS、codex proxy)。
 
-Runner (``rpent/cli/main.py``)
-------------------------------
+Runner
+------
 
 ``rpent/cli/main.py`` 是编排者。每一次调用它会:
 
@@ -121,7 +144,7 @@ Env 侧的注册表
 
    # robots/myenv/__init__.py
    def get_env_spec() -> EnvSpec: ...
-   def get_toolkit(*, primitives_kwargs, video_path=None): ...
+   def get_toolkit(*, primitives_kwargs, video_path=None, dashboard=None): ...
 
 env 是 **没有中央列表** 的。把包放到 ``robots/`` 下就行。这也是新增
 机器人时用的机制 (见 :doc:`add_robot`)。
@@ -131,8 +154,10 @@ Planner 接口
 
 每个 planner 实现同一个很小的接口 (见 ``rpent.planner.base``):
 
-- 接受渲染好的 ``prompt_bundle`` (system + user 分节)。
-- 接受一个 ``toolkit`` (暴露 tool schema 和 ``dispatch`` 方法)。
+- 接收已经渲染好的 ``system_prompt`` 和 ``user_message`` 字符串
+  (CLI 在调用 ``solve`` 前从 env 的 prompt bundle 渲染得到)。
+- 接收一个 ``toolkit`` (通过 ``get_tools_spec()`` 暴露 tool schema,
+  通过 ``execute_tool(name, input_dict)`` 分发调用)。
 - 驱动 tool-calling 循环。
 - 把每个 tool 返回值以多模态上下文喂回。
 - 遇到 ``finish`` 或触达上限时终止。

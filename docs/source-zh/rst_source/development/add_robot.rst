@@ -22,7 +22,7 @@ VLA 模型跑在自己独立的进程里 (env / vla 分离)
 **第三个独立进程** 里 —— 绝不塞进 env_server:
 
 - **VLA 侧** (``robots/<env>/vla_server.py``) —— 只持有 VLA 策略 (GPU 模型),
-  通过自己的 RPC/HTTP 端点暴露 ``vla_load`` / ``vla_infer`` / ``vla_reset``,
+  通过自己的 RPC/HTTP 端点暴露单个 ``predict`` 推理 RPC,
   不 import 任何仿真器。
 - toolkit 除了 ``EnvClient`` 之外, 还接收一个 **model client** (LIBERO/Pi0.5
   用 ``VLAClient``, RoboCasa/RLDX-1 用 ``RLDXVLAClient``) 作为 ``model`` 参数。
@@ -75,9 +75,9 @@ import ``robots.<name>``, 并调用其两个工厂函数:
    def get_env_spec() -> EnvSpec:
        return EnvSpec(name="myenv", prompts=PromptBundle(system=system_prompt, user=user_prompt))
 
-   def get_toolkit(*, primitives_kwargs: dict[str, Any], video_path: str | None = None):
+   def get_toolkit(*, primitives_kwargs: dict[str, Any], video_path: str | None = None, dashboard: Any = None):
        from robots.myenv.toolkit import MyEnvToolkit
-       return MyEnvToolkit(primitives_kwargs=primitives_kwargs, video_path=video_path)
+       return MyEnvToolkit(primitives_kwargs=primitives_kwargs, video_path=video_path, dashboard=dashboard)
 
 整个注册流程就是这样 —— ``_resolve_env(name)`` 通过
 ``importlib.import_module(f"robots.{name}")`` 动态加载, 所以把包放在 ``robots/``
@@ -95,7 +95,7 @@ RPC; env_server 跑在 driver 进程内, 应答这些调用。
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 类约定了两个 gym 风格的方法 (``reset``、``step``); 根据 env 需要增加其他方法
-(LIBERO 增加了 ``chunk_step``、``render_agentview``、``get_camera_meta``、
+(LIBERO 增加了 ``chunk_step``、``render_camera``、``get_camera_meta``、
 ``cached_image`` 等)。每个方法通过
 ``RpcClient.call("<rpc-name>", args=..., kwargs=...)`` 转发, 并设置各自的 timeout。
 方法名要稳定 —— driver 侧 dispatcher 按名字匹配。
@@ -147,9 +147,11 @@ RPC; env_server 跑在 driver 进程内, 应答这些调用。
 ``RpcFacade.serve`` 负责 transport 绑定 (http / socket)、``healthz`` 与
 ``shutdown`` 方法、感知父进程死亡、以及干净收尾 —— 你只写业务方法。
 
-当前的 ``rpent/cli/main.py`` 直接 import 了 ``LiberoEnvClient`` 和 LIBERO 的 env_server
-脚本路径。新增 env 时, 要么在 ``args.env_name`` 上分支选择 client 类和 driver
-脚本, 要么把这两处调用点抽到每个 env 的小型 helper 后面。
+把新 env 接入 ``rpent/cli/main.py`` 目前需要三个具体步骤: (a) 把 env 名加入
+``--env`` 的 ``choices`` 列表; (b) 仿照 ``_init_libero`` 添加一个
+``_init_<env>(...)`` 构建器, 负责拉起 env / vla 守护进程并返回
+``primitives_kwargs``; (c) 在 ``_build_env_parser`` 中添加对应分支 (它目前对任何
+非 ``libero`` 的 env 都会 ``assert False``)。
 
 2. ``prompt_bundle.py``
 -----------------------
@@ -203,8 +205,9 @@ MCP allowlist。(LIBERO 中由于历史原因把这些拆到了 ``tools.py`` 和
 
 **工具 schema + handler 辅助函数** —— 模块级的 ``TOOLS_SPEC`` 列表
 (Anthropic 形状的 schema dict, 含 ``name``、``description``、``input_schema``),
-以及 toolkit 引用的自由函数 (例如 ``view_driver_state``、``back_project``、
-``finish``)。
+以及 toolkit 引用的 env 专属自由函数 (例如 ``view_driver_state``、
+``back_project``)。像 ``finish`` 这样的通用工具定义在 ``rpent/tools/common.py``,
+由基类 ``Toolkit`` 自动注册 —— 不必每个 env 重新定义。
 
 **每步状态 dump** —— ``dump_state(driver, output_dir, step_idx, log)`` 把 agent
 之后会通过 ``view_*`` 工具读回的所有状态 (图像、深度、JSON 状态、camera meta)
@@ -212,11 +215,11 @@ MCP allowlist。(LIBERO 中由于历史原因把这些拆到了 ``tools.py`` 和
 
 **Toolkit 类** —— 继承 ``rpent.tools.toolkit.Toolkit``:
 
-- 在 ``__init__`` 中通过 ``init_driver_clean`` 构建 primitive driver (清理过期的
+- 在 ``__init__`` 中通过 ``init_primitives_clean`` 构建 primitive driver (清理过期的
   ``images/`` 等, 构造 primitives, dump 第 0 步),
 - 用 ``self.add_tool(name, spec, handler)`` 注册每个工具 —— 无状态读取类
-  (``view_driver_state``、``finish`` 等) 直接绑定到模块级函数; primitive 工具走
-  ``_step(name, **kwargs)``, 它通过 ``getattr(self._driver, name)(**kwargs)``
+  (``view_driver_state``、``back_project`` 等) 直接绑定到模块级函数; primitive 工具走
+  ``_step(name, **kwargs)``, 它通过 ``getattr(self._primitives, name)(**kwargs)``
   调用 driver 方法并重新渲染状态,
 - override ``close()`` 来 flush agent 侧的工件 (例如 LIBERO toolkit 在这里保存
   agentview MP4)。

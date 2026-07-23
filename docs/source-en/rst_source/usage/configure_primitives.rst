@@ -3,7 +3,7 @@ Action Primitives
 
 Where the planner chooses *what* to do, the **action primitive**
 chooses *how* it happens. A primitive is whatever turns a tool call
-(``pi0_pick``, ``move_to``, ``open_drawer``, …) into an executable
+(``pi0_pick``, ``move_to``, ``set_gripper``, …) into an executable
 action chunk for the environment.
 
 RPent supports two families of primitives out of the box:

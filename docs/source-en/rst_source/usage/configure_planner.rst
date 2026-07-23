@@ -98,7 +98,7 @@ Notes:
   ``claude-opus-4-8``.
 - The subprocess is capped by a wall-clock budget
   (``--planner-timeout-s``, defaults to
-  ``CODEX_TIMEOUT_S`` / ``CELL_TIMEOUT_S`` / ``1200``).
+  ``CELL_TIMEOUT_S`` / ``1200``).
 - A dollar budget can be set via ``--claude-code-max-budget-usd``
   (defaults to ``MAX_BUDGET_USD`` env or ``10``).
 - Claude Code needs to be installed and authenticated separately; see
@@ -135,20 +135,24 @@ subclass ``rpent.planner.base.Planner`` and register your factory in
 .. code-block:: python
 
    # rpent/planner/mybrain.py
-   from rpent.planner.base import Planner
+   from rpent.planner.base import Planner, PlannerResult
 
    class MyPlanner(Planner):
-       async def run(self, *, prompt_bundle, toolkit, output_dir, ...):
+       def solve(self, *, system_prompt: str, user_message: str,
+                 toolkit, max_turns: int, input_queue=None) -> PlannerResult:
            # Drive the tool-calling loop yourself.
-           # Call toolkit.dispatch(tool_name, **kwargs) to invoke a tool.
+           # tools_spec = toolkit.get_tools_spec()   # tool schemas the LLM sees
+           # result = toolkit.execute_tool(name, input_dict)  # returns a ToolResult
            ...
 
 Any planner must:
 
-1. Take the rendered ``prompt_bundle`` (system + user prompt sections
-   from ``robots/<env>/prompt_bundle.py``).
+1. Accept the already-rendered ``system_prompt`` and ``user_message``
+   strings (the CLI renders them from ``robots/<env>/prompt_bundle.py``
+   before calling ``solve``).
 2. Loop over LLM replies, extract tool calls, and forward them to the
-   toolkit via ``toolkit.dispatch(...)``.
+   toolkit via ``toolkit.execute_tool(name, input_dict)`` (tool schemas
+   come from ``toolkit.get_tools_spec()``).
 3. Feed each tool's return value back into the LLM as multimodal
    context (text + images).
 4. Terminate on ``finish`` or when the caps are hit.

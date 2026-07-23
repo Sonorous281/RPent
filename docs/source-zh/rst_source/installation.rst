@@ -9,7 +9,7 @@ PyPI 拉取已发布的 openpi 与 LIBERO 仿真器包。
 
 - Linux + NVIDIA GPU (LIBERO 通过 EGL 渲染)。
 - 与显卡匹配的 CUDA 12.x 驱动。
-- Python 3.10–3.11。
+- Python 3.10–3.12。
 - ``git``、``bash``、以及能编译 MuJoCo / robosuite 的 C 工具链。
 
 同时你还需要:

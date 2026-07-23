@@ -2,7 +2,7 @@ Action Primitives
 =================
 
 Planner 决定 *做什么*, 而 **action primitive** 决定 *怎么做*。所谓 primitive
-就是把一次 tool 调用 (``pi0_pick``、``move_to``、``open_drawer``…) 变成
+就是把一次 tool 调用 (``pi0_pick``、``move_to``、``set_gripper``…) 变成
 一段可以直接送给 environment 执行的动作。
 
 RPent 内置支持两大类 primitive:

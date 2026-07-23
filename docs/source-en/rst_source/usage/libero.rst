@@ -82,7 +82,7 @@ What runs where
 
 - **env_server** (``robots/libero/env_server.py``) — owns the LIBERO
   MuJoCo env and EGL rendering. Exposes ``reset``, ``step``,
-  ``chunk_step``, ``render_agentview``, ``get_camera_meta``,
+  ``chunk_step``, ``render_camera(camera_name="agentview")``, ``get_camera_meta``,
   ``cached_image``, … over an RPC transport (HTTP by default; socket
   via ``--transport socket``).
 - **vla_server** (``robots/libero/vla_server.py``) — owns the Pi0.5
@@ -98,18 +98,37 @@ Tools the planner sees
 
 By default the LIBERO toolkit exposes:
 
-- ``pi0_pick(target)`` — invoke Pi0.5 for a pick chunk targeting
-  ``target`` (a natural-language object description).
-- ``move_to(dx, dy, dz)`` — scripted Cartesian motion (deterministic;
-  no VLA).
-- ``rotate_wrist(delta_rad)`` — scripted wrist rotation.
+- ``pi0_pick(prompt)`` — invoke Pi0.5 for a pick chunk driven by
+  ``prompt`` (a natural-language pick instruction).
+- ``pi0_doubled(prompt)`` — invoke Pi0.5 for a non-pick contact chunk
+  driven by ``prompt`` (e.g. turning a knob, toggling a stove, a short
+  push).
+- ``move_to(xyz)`` — scripted Cartesian motion to an absolute
+  world-frame ``[x, y, z]`` target in meters (deterministic; no VLA).
+- ``move_pose(xyz)`` — scripted Cartesian motion that co-varies
+  position and wrist orientation (pitch + yaw) at once; threads
+  cabinet-front / low-shelf poses where a decoupled servo stalls.
+- ``rotate_wrist(target_yaw / delta_yaw)`` — scripted wrist rotation
+  around the world Z-axis; pass an absolute ``target_yaw`` or a
+  relative ``delta_yaw`` (radians).
+- ``rotate_pitch(target_pitch / delta_pitch)`` — scripted gripper tilt
+  around the world X-axis; pass an absolute ``target_pitch`` or a
+  relative ``delta_pitch`` (radians).
 - ``release()`` — open the gripper.
-- ``back_project(pixel_x, pixel_y)`` — turn a click on the agentview
-  image into a 3D point in world coordinates.
+- ``set_gripper(gripper, steps)`` — hold the current pose and drive the
+  gripper command for ``steps`` env steps (e.g. to firm up a grip).
+- ``back_project(row, col)`` — turn an image pixel (``row`` 0 = top,
+  ``col`` 0 = left) into a 3D point in world coordinates.
+- ``segment(prompt)`` — optional segmentation helper that localizes an
+  object in an existing image artifact (falls back to manual
+  localization when no service is configured).
 - ``view_driver_state()`` — force a fresh state dump (images, depths,
   camera meta, ``states.json``).
-- ``finish(status)`` — end the episode with ``success`` / ``failure``
-  / ``stuck``.
+- ``view_camera_meta(camera)`` — read camera calibration metadata
+  (``agentview`` or ``wrist``) for localization.
+- ``finish(status, summary)`` — end the episode; ``status`` is
+  ``success`` / ``failure`` / ``stuck`` and ``summary`` is a short
+  natural-language recap (both required).
 
 Every tool re-renders the world after it runs, so the next turn's
 context reflects the post-action state.

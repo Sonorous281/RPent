@@ -121,7 +121,8 @@
 1. env_server / vla_server 起来后各打印一行
    ``RPC server listening on http://127.0.0.1:<port>``。
 2. 每一轮 agent 的 reasoning 会输出到终端 (或 stream 到 dashboard)。
-3. 当 LLM 调用 ``finish(success=True)`` 时结束; 或者触达
+3. 当 LLM 调用 ``finish(status, summary)`` 且 ``status="success"``
+   (或 ``"failure"`` / ``"stuck"``) 时结束; 或者触达
    ``--max-turns`` / ``--max-episode-steps`` 时结束。
 4. 写出 ``<output_dir>/transcript_*.json`` (完整 turn-by-turn 记录) 和
    ``<output_dir>/episode.mp4`` (渲染出的 rollout)。

@@ -160,9 +160,8 @@ Env-side registry
 -----------------
 
 ``rpent/envs/base.py`` maintains a **lazy** registry keyed on the env
-name. When you pass ``--env myenv``, it does an
-``importlib.import_module("robots.myenv")`` and calls the two
-factories the package exposes:
+name. Passing ``--env myenv`` imports the ``robots.myenv`` package on
+demand and calls the two factories it exposes:
 
 .. code-block:: python
 
@@ -170,9 +169,9 @@ factories the package exposes:
    def get_env_spec() -> EnvSpec: ...
    def get_toolkit(*, primitives_kwargs, video_path=None, dashboard=None): ...
 
-There is **no central list** of envs. Dropping a package under
-``robots/`` is enough. This is the mechanism you use to add a new
-robot (see :doc:`add_robot`).
+There is **no central list** of envs — dropping a package under
+``robots/`` is enough. This is the mechanism you use to add a new robot
+(see :doc:`add_robot`).
 
 Planner interface
 -----------------
@@ -251,8 +250,10 @@ port), boots a launcher page for picking config, and then streams:
 - An action timeline.
 - On-completion clip replays.
 
-The dashboard is *observational* — it never affects the loop — so a
-failure inside the dashboard cannot break a run.
+.. note::
+
+   The dashboard is purely observational and never affects the loop, so
+   a failure inside the dashboard cannot break a run.
 
 From here
 ---------

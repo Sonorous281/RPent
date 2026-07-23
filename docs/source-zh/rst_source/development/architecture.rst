@@ -93,8 +93,8 @@ RPent 建立在三条核心设计原则之上：
 .. code-block:: text
 
    rpent/
-     planner/       # Reasoning brains: api_loop, claude_code, codex, base.
-     cli/            # main.py 入口 (无 __init__.py, 不是 subpackage)。
+     planner/       # 决策大脑：api_loop、claude_code、codex、base。
+     cli/            # main.py 入口 (无 __init__.py，不是 subpackage)。
      context/        # Prompt bundles、prompt 工具、共享 prompt 分节。
      dashboard/      # FastAPI 监控 + SSE stream (可选)。
      envs/           # EnvSpec、PromptBundle、以及 env 的 lazy 注册表。
@@ -103,9 +103,9 @@ RPent 建立在三条核心设计原则之上：
    robots/
      libero/         # LIBERO 的 env_client / env_server / vla_server /
                      # toolkit / prompt_bundle。参考实现。
-     (robocasa/)     # RoboCasa driver —— 研发中。
-     (franka/)       # Franka driver —— 研发中。
-     (so101/)        # SO-101 driver —— 研发中。
+     (robocasa/)     # RoboCasa 驱动 —— 研发中。
+     (franka/)       # Franka 驱动 —— 研发中。
+     (so101/)        # SO-101 驱动 —— 研发中。
    scripts/          # 安装脚本 (LIBERO PRO/PLUS、codex proxy)。
 
 Runner
@@ -137,8 +137,8 @@ Env 侧的注册表
 --------------
 
 ``rpent/envs/base.py`` 维护一个以 env 名为 key 的 **lazy** 注册表。
-传入 ``--env myenv`` 时，它会执行
-``importlib.import_module("robots.myenv")``，然后调用包暴露的两个工厂：
+传入 ``--env myenv`` 时，它会按需 import ``robots.myenv`` 包，并调用
+包暴露的两个工厂：
 
 .. code-block:: python
 
@@ -146,8 +146,8 @@ Env 侧的注册表
    def get_env_spec() -> EnvSpec: ...
    def get_toolkit(*, primitives_kwargs, video_path=None, dashboard=None): ...
 
-env 是 **没有中央列表** 的。把包放到 ``robots/`` 下就行。这也是新增
-机器人时用的机制 (见 :doc:`add_robot`)。
+env **没有中央列表** —— 把包放到 ``robots/`` 下就行。这也是新增机器人
+时用的机制 (见 :doc:`add_robot`)。
 
 Planner 接口
 ------------
@@ -216,8 +216,10 @@ Dashboard (可选)
 - 动作时间线。
 - 结束时的剪辑回放。
 
-Dashboard 是 *观察性的* —— 永远不影响循环 —— 所以 dashboard 内部
-出错也不会拖垮 run。
+.. note::
+
+   Dashboard 是纯观察性的，永远不影响循环，所以 dashboard 内部出错也
+   不会拖垮一次 run。
 
 下一步
 ------

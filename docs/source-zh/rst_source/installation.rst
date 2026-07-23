@@ -12,26 +12,26 @@ PyPI 拉取已发布的 openpi 与 LIBERO 仿真器包。
 - Python 3.10–3.12。
 - ``git``、``bash``、以及能编译 MuJoCo / robosuite 的 C 工具链。
 
-同时你还需要：
+同时你还需要准备两样东西。
 
-- 至少一个 LLM 提供商的 API key —— Anthropic、OpenAI，或 OpenAI 兼容的
-  chat 接口 —— 用于 reasoning brain。
-- 一个 VLA checkpoint。LIBERO / Pi0.5 推荐使用
+- 至少一个 LLM 提供方的 API key，用于驱动推理大脑，可以是 Anthropic、OpenAI，
+  或任何 OpenAI 兼容的 chat 接口。
+- 一个 VLA 检查点。LIBERO 上的 Pi0.5 推荐用
   `HuggingFace: RLinf-Pi05-LIBERO-130-fullshot-SFT
   <https://huggingface.co/RLinf/RLinf-Pi05-LIBERO-130-fullshot-SFT>`_。
 
 1. 用 pip 安装 RPent
 --------------------
 
-Clone RPent (用于 CLI 与运行配置)，再按需选择 extra 安装：
+克隆 RPent (它提供 CLI 和运行配置)，再按需选择 extra 安装：
 
 .. code-block:: bash
 
    git clone https://github.com/RLinf/RPent rpent && cd rpent
    pip install -e ".[full]"
 
-``.[full]`` 是默认的端到端组合 —— openpi Pi0.5 VLA + LIBERO-PRO 仿真器，
-运行在 RLinf 运行时之上。
+``.[full]`` 是默认的端到端组合，包含 openpi 的 Pi0.5 VLA 和 LIBERO-PRO 仿真器，
+跑在 RLinf 运行时之上。
 
 可用的 extra:
 
@@ -41,7 +41,7 @@ Clone RPent (用于 CLI 与运行配置)，再按需选择 extra 安装：
    * - Extra
      - 安装内容
    * - ``.[full]``
-     - ``rlinf`` + ``openpi`` + ``libero-pro`` —— 默认运行组合
+     - ``rlinf`` + ``openpi`` + ``libero-pro``, 默认运行组合
    * - ``.[libero-pro]``
      - 仅基础 LIBERO + LIBERO-PRO 仿真器
    * - ``.[libero-plus]``
@@ -75,22 +75,21 @@ PyPI wheel 不包含大体积仿真资产。安装后需一次性下载：
 3. (可选) 真实机器人依赖
 ------------------------
 
-Franka 与 SO-101 的支持正在逐步接入；每个机器人的 driver 会以一个包的
-形式放在 ``robots/<name>/`` 下，并附带 ``README.md`` 说明其 SDK / 固件
-要求。当前进度参见 :doc:`usage/franka` 与 :doc:`usage/so101`。
+Franka 和 SO-101 的支持正在逐步接入。每个机器人的驱动都会以一个包的形式放在
+``robots/<name>/`` 下，并附带 ``README.md`` 说明它对 SDK 和固件的要求。当前进度
+参见 :doc:`usage/franka` 和 :doc:`usage/so101`。
 
 验证安装
 --------
 
-最快的验证方法是端到端跑通一个 LIBERO 任务 —— 见 :doc:`quickstart`。
-如果成功，说明 env server、VLA server、reasoning brain 三者都健康。
+最快的验证办法是端到端跑通一个 LIBERO 任务，具体步骤见 :doc:`quickstart`。
+只要跑通，就说明 env server、VLA server 和推理大脑三者都正常。
 
-如果出错：
+万一出错，可以按下面三份日志排查:
 
-- env server 的 stdout / stderr 会写到
-  ``<output_dir>/env_server.log``。
+- env server 的标准输出和标准错误都写到 ``<output_dir>/env_server.log``。
 - VLA server 的日志在 ``<output_dir>/vla_server.log``。
-- Agent 本身的运行日志在 ``<output_dir>/run.log``。
+- agent 本身的运行日志在 ``<output_dir>/run.log``。
 
-三份日志都放在这一次运行的 scratch 目录下，所以失败的运行是自包含的、
-易于排查。
+三份日志都放在本次运行的临时目录下，所以每一次失败的运行都是自包含的，排查
+起来很方便。

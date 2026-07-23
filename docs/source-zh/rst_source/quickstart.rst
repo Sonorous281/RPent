@@ -1,14 +1,13 @@
 快速开始
 ========
 
-本页把 ``README.md`` 里的 Quick Start 搬到了文档中。它假设你已经完成了
-:doc:`installation` (克隆好 RPent 并执行了
-``pip install -e ".[full]"``)。
+本页把 ``README.md`` 里的 Quick Start 搬进了文档，假设你已经读完
+:doc:`installation`，克隆好了 RPent 并执行过 ``pip install -e ".[full]"``。
 
 1. 配置 API key 与 checkpoint
 ------------------------------
 
-导出 Anthropic 密钥，以及 VLA checkpoint 的路径：
+导出 Anthropic 密钥和 VLA 检查点的路径：
 
 .. code-block:: bash
 
@@ -16,7 +15,7 @@
    export ANTHROPIC_BASE_URL=https://xxx
    export ANTHROPIC_API_KEY=sk-xxx
 
-   # VLA checkpoint —— 从下面地址下载
+   # VLA 检查点, 从下面地址下载:
    # https://huggingface.co/RLinf/RLinf-Pi05-LIBERO-130-fullshot-SFT
    export PI05_CHECKPOINT_PATH=/path/to/rlinf-pi05-libero-130-fullshot-sft
    export LIBERO_TYPE=pro
@@ -25,24 +24,23 @@
 2. 跑一个 LIBERO 任务
 ---------------------
 
-用 ``claude_code`` planner 跑单个 LIBERO PRO 任务
-(``libero_object_swap``，任务 ``2``，种子 ``0``):
+用 ``claude_code`` planner 跑一个 LIBERO PRO 任务，这里选套件
+``libero_object_swap``、任务 ``2``、种子 ``0``：
 
 .. code-block:: bash
 
    rpent --env libero --suite libero_object_swap --task 2 --seed 0 \
      --planner claude_code --model claude-opus-4-8
 
-其他 planner (``api``、``codex``) 与模型提供商的配置见
+其他 planner（``api`` 和 ``codex``）以及各家模型提供方的配置，见
 :doc:`usage/configure_planner`。
 
-1. 用 dashboard 观察运行
+3. 用 dashboard 观察运行
 ------------------------
 
-加上 ``--dashboard`` 会打开浏览器监控页面。它会先展示一个 launcher
-页面让你确认配置，然后开始 streaming: agent 的 reasoning、实时相机
-与 Pi0 视图、动作时间线、剪辑回放。加上 ``--dashboard-language zh-cn``
-切换到中文 UI。
+加上 ``--dashboard`` 会打开浏览器里的监控页面。它先展示一个启动页让你确认
+配置，随后开始实时推送：agent 的推理过程、实时相机与 Pi0 视图、动作时间线，
+以及回放片段。再加上 ``--dashboard-language zh-cn`` 就切换到中文界面。
 
 .. code-block:: bash
 
@@ -75,7 +73,7 @@
      - 随机种子
    * - ``--planner``
      - ``api``
-     - Reasoning brain: ``api`` | ``claude_code`` | ``codex``
+     - 决策大脑，可选 ``api`` | ``claude_code`` | ``codex``
    * - ``--model``
      - —
      - 模型 id; ``api`` 下要带 provider 前缀 (``anthropic:…``,
@@ -116,15 +114,15 @@
 跑起来后应该看到什么
 --------------------
 
-一次成功的运行：
+一次成功的运行是这样的：
 
-1. env_server / vla_server 起来后各打印一行
+1. env_server 和 vla_server 起来后，各打印一行
    ``RPC server listening on http://127.0.0.1:<port>``。
-2. 每一轮 agent 的 reasoning 会输出到终端 (或 stream 到 dashboard)。
+2. 每一轮 agent 的推理都会输出到终端，或推送到 dashboard。
 3. 当 LLM 调用 ``finish(status, summary)`` 且 ``status="success"``
-   (或 ``"failure"`` / ``"stuck"``) 时结束；或者触达
-   ``--max-turns`` / ``--max-episode-steps`` 时结束。
-4. 写出 ``<output_dir>/transcript_*.json`` (完整 turn-by-turn 记录) 和
-   ``<output_dir>/episode.mp4`` (渲染出的 rollout)。
+   (或 ``"failure"`` / ``"stuck"``) 时结束；触达
+   ``--max-turns`` / ``--max-episode-steps`` 上限时也会结束。
+4. 写出两份产物: ``<output_dir>/transcript_*.json`` 记录逐轮的完整对话，
+   ``<output_dir>/episode.mp4`` 是渲染出的运行录像。
 
-出问题时，参考 :doc:`installation` 页底部提到的三份日志文件。
+万一出了问题，可以查 :doc:`installation` 页底部提到的三份日志文件。

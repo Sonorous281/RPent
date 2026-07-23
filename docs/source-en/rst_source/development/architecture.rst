@@ -85,8 +85,8 @@ around; the sections below then show how each is implemented.)*
 - **Add an environment by dropping a package on disk.** No central
   registry to edit — see :doc:`add_robot`.
 
-How a single turn happens
--------------------------
+The runtime loop
+----------------
 
 A single run is an LLM-in-the-loop cycle:
 
@@ -130,27 +130,14 @@ The code that implements the framework is split cleanly by concern:
 The runner
 ----------
 
-``rpent/cli/main.py`` is the choreographer. On each invocation it:
-
-1. Parses the CLI flags (:doc:`../quickstart` documents the ones you'll
-   use day-to-day).
-2. Creates the per-run scratch directory (``--output-dir`` or an
-   auto-generated one under ``runs/``).
-3. Pre-allocates a free port on the loopback for the **env_server**,
-   spawns it as a subprocess (with the port passed on the CLI), and
-   polls ``healthz`` via :func:`rpent.utils.rpc.wait_for_ready` until
-   the child is up.
-4. Does the same for the **vla_server**, or attaches to one via
-   ``--vla-endpoint`` when reusing a running instance.
-5. Builds the **toolkit** for the chosen env via the env's
-   ``get_toolkit(primitives_kwargs=...)`` factory, wiring in the env
-   client and the VLA client.
-6. Builds the **planner** via ``rpent.planner.base.build_planner``,
-   selecting one of ``api_loop.py`` / ``claude_code.py`` /
-   ``codex.py`` based on ``--planner``.
-7. Runs the tool-calling loop, streams to the dashboard if
-   ``--dashboard`` is set, and on exit writes
-   ``<output_dir>/transcript_*.json`` plus ``<output_dir>/episode.mp4``.
+``rpent/cli/main.py`` is the choreographer: it brings the three
+processes up, wires them together, and hands off to the reasoning loop.
+It first spawns the ``env_server`` and ``vla_server`` subprocesses and
+waits for them to be ready, then builds the toolkit for the chosen env,
+constructs the planner selected by ``--planner``, and runs the
+tool-calling loop, writing the transcript and ``episode.mp4`` on exit.
+The CLI flags you'll use day-to-day are documented in
+:doc:`../quickstart`.
 
 The runner is intentionally thin: everything env-specific lives under
 ``robots/<env>/``, and everything brain-specific lives under

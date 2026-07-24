@@ -42,14 +42,13 @@ Every planner implements the same tiny interface (see
 
 That is the entire abstraction. The three built-in planners differ
 only in *how* they meet the contract — see
-:doc:`../usage/configure_planner` for the user-facing view and
-``rpent/planner/api_loop.py`` / ``claude_code.py`` / ``codex.py``
-for the code.
+:doc:`../usage/configure_planner` for the user-facing view, and the
+corresponding three files under ``rpent/planner/`` for the code.
 
 Toolkit interface
 -----------------
 
-A toolkit (``rpent.tools.toolkit.Toolkit``) owns:
+A toolkit (``rpent.tools.toolkit.Toolkit``) owns three things:
 
 - A **primitive driver** — a plain Python object that holds the env
   client, the VLA client, and any per-run state. Each tool the LLM
@@ -84,6 +83,5 @@ prefix:
 Server-side, subclass :class:`rpent.utils.rpc.RpcFacade` and implement
 ``_dispatch(method, args, kwargs)``; the base provides shutdown, healthz,
 transport binding, parent-death watch, and clean teardown. Adding a new
-transport is a matter of implementing the two-method ``RpcClient``
-interface (``call(method, args, kwargs, timeout_s)``); the toolkit and
-planner stay unchanged.
+transport is a matter of implementing the two methods of the
+``RpcClient`` interface; the toolkit and planner stay unchanged.

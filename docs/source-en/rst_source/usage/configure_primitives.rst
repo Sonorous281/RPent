@@ -50,11 +50,10 @@ Which VLA runs where
      - socket RPC
      - ``robots/so101/vla_server.py`` *(planned)*
 
-The wire codec is chosen per env to fit the observation shape. The
-VLA server exposes the same ``predict`` / ``healthz`` methods over both
-HTTP (JSON) and socket (pickle-framed) transports; pick whichever suits
-the observation shape via ``--transport {http,socket}`` (defaults to
-``http``). See :doc:`../development/add_robot` for the design rationale.
+Every VLA server exposes the same ``predict`` / ``healthz`` methods over
+both HTTP (JSON) and socket (pickle-framed) transports; select one with
+``--transport {http,socket}`` (defaults to ``http``). See
+:doc:`../development/add_robot` for the design rationale.
 
 Reusing a running VLA server
 ----------------------------

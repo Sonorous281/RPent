@@ -47,7 +47,7 @@ Scripted primitives are the fastest to add. Pattern:
    .. code-block:: python
 
       def open_drawer(self, dx: float = 0.15) -> dict:
-          # Move end-effector back by dx while gripper is closed.
+          # Keep the gripper closed; pull back by dx meters along -x.
           for _ in range(N):
               self._env.step(build_open_drawer_chunk(dx))
           return {"ok": True, "dx": dx}

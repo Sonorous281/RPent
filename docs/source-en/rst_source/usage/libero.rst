@@ -83,8 +83,8 @@ What runs where
 - **env_server** (``robots/libero/env_server.py``) — owns the LIBERO
   MuJoCo env and EGL rendering. Exposes ``reset``, ``step``,
   ``chunk_step``, ``render_camera(camera_name="agentview")``, ``get_camera_meta``,
-  ``cached_image``, … over an RPC transport (HTTP by default; socket
-  via ``--transport socket``).
+  ``cached_image``, … over an RPC transport (HTTP by default; a
+  pickle-framed socket via ``--transport socket``).
 - **vla_server** (``robots/libero/vla_server.py``) — owns the Pi0.5
   weights. Exposes ``predict`` over the same RPC transport (HTTP or
   socket).

@@ -13,14 +13,14 @@ RPent splits an env into two processes:
 - **Driver side** (``robots/<env>/env_server.py``) — owns the heavyweight
   simulator / robot; exposes its env via a
   :class:`rpent.utils.rpc.RpcFacade` served over HTTP by default
-  (``--transport socket`` switches to the pickle-framed TCP transport
-  when the obs shape is a better fit).
+  (``--transport socket`` switches to the pickle-framed TCP transport,
+  a better fit for large observation payloads).
 
 The two are connected by an ``EnvClient`` class that turns each agent-side
 method call into one RPC against the driver.
 
-VLA model runs in its OWN process (env / vla split)
----------------------------------------------------
+VLA model runs in its own process
+---------------------------------
 
 When an env uses a VLA policy (a learned model that consumes camera obs and
 emits actions), that model runs in a **third, separate process** — never inside

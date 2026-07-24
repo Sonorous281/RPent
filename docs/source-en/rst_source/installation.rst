@@ -2,7 +2,8 @@ Installation
 ============
 
 RPent installs with a single ``pip install``. The optional-dependency
-extras pull openpi and the LIBERO simulators.
+extras pull the published openpi and LIBERO simulator packages from
+PyPI.
 
 Prerequisites
 -------------
@@ -12,7 +13,7 @@ Prerequisites
 - Python 3.10–3.12.
 - ``git``, ``bash``, and a working C toolchain for MuJoCo / robosuite.
 
-You will also want:
+You will also need two things:
 
 - An API key for at least one LLM provider — Anthropic, OpenAI, or an
   OpenAI-compatible chat endpoint — for the reasoning brain.

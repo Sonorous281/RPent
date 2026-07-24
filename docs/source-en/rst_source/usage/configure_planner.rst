@@ -129,8 +129,8 @@ Bring your own agent
 
 If none of the three planners fit — say you want to plug in an
 in-house planner, a research prototype, or a different agent SDK —
-subclass ``rpent.planner.base.Planner`` and register your factory in
-``rpent.planner.base.build_planner``:
+subclass ``rpent.planner.base.Planner`` and add a branch that builds it
+to ``rpent.planner.base.build_planner``:
 
 .. code-block:: python
 

@@ -11,7 +11,8 @@ RoboCasa
 manipulation environment. In RPent it **will be** driven by the **RLDX-1** VLA
 policy, served over a pickle-framed socket RPC (rather than HTTP as
 LIBERO uses), because RLDX observations are history-stacked nested
-numpy dicts that ride sockets natively.
+numpy dicts that ride sockets natively; forcing them through HTTP would
+mean designing an extra wire format.
 
 Task families
 -------------

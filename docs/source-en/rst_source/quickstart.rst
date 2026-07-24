@@ -37,7 +37,7 @@ Run a single LIBERO PRO task (``libero_object_swap``, task ``2``, seed
 See :doc:`usage/configure_planner` to configure other planners
 (``api``, ``codex``) and model providers.
 
-1. Watch it run in the dashboard
+3. Watch it run in the dashboard
 --------------------------------
 
 Add ``--dashboard`` to open a browser monitor for the run. It boots a

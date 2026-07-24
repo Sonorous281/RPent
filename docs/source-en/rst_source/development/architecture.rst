@@ -94,8 +94,8 @@ A single run is an LLM-in-the-loop cycle:
    (e.g. ``pi0_pick``).
 2. The tool's **primitive driver** asks the ``vla_server`` for an
    action chunk (``predict``).
-3. The ``env_server`` executes that chunk (``chunk_step`` for LIBERO,
-   stepwise ``step`` for RoboCasa).
+3. The ``env_server`` executes that chunk (LIBERO's ``chunk_step`` runs
+   the whole chunk in one shot).
 4. The env renders the resulting observation and camera frames.
 5. Results are turned into text + image content blocks and fed back
    to the LLM for the next turn.

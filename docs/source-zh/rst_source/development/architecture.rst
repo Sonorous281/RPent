@@ -77,7 +77,7 @@ GPU 上的策略权重。三者用轻量 RPC 串在一起，任何一个重量�
 
 1. LLM 分析任务，调用一个工具，比如 ``pi0_pick``。
 2. 工具背后的 primitive driver 向 ``vla_server`` 请求一段动作 chunk（``predict``）。
-3. ``env_server`` 执行这段 chunk（LIBERO 用 ``chunk_step``，RoboCasa 逐步 ``step``）。
+3. ``env_server`` 执行这段 chunk（LIBERO 的 ``chunk_step`` 一次走完整段）。
 4. 环境渲染出新的观测和相机画面。
 5. 结果组装成文本加图像的内容块，喂回给 LLM 进入下一轮。
 

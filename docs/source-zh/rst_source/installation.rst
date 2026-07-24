@@ -1,7 +1,7 @@
 安装
 ====
 
-RPent 用一条 ``pip install`` 即可安装。optional-dependency extra 会从
+RPent 用一条 ``pip install`` 即可安装。可选依赖 extra 会从
 PyPI 拉取已发布的 openpi 与 LIBERO 仿真器包。
 
 先决条件

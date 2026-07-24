@@ -49,38 +49,33 @@ Key features
 This section highlights the design choices that set RPent apart from
 other embodied-agent frameworks.
 
-**LLM as the planner.** This is the most fundamental difference from most
-embodied agents: they train an end-to-end policy model that outputs
-actions directly, whereas RPent has a general LLM act as the planner —
-reasoning and calling tools to drive the robot, with VLAs and scripted
-actions as the low-level capabilities it invokes. Each tool call returns
-text plus images, fed back so the model decides its next step from what
-it actually sees. This taps the LLM's general reasoning and on-the-fly
-recovery without retraining a model for each new task.
+**VLA as a retryable tool.** Instead of training an end-to-end policy model
+that outputs actions directly, RPent has a general LLM act as the planner and
+call the frozen VLA as action primitives like ``pi0_pick`` and ``pi0_doubled``,
+alongside scripted tools such as ``move_to`` and ``rotate_wrist`` in one common
+tool schema. Each call returns text plus images, fed back so the LLM decides
+its next step from what it actually sees; together with a per-environment
+memory, the planner knows under what conditions the VLA is reliable. This taps
+the LLM's general reasoning and on-the-fly recovery without retraining a model
+per task. See :doc:`add_primitive` for how to add a new primitive.
 
-The planner itself is swappable, with three built-in backends:
+**Swappable planner, three symmetric backends.** Changing one ``--planner``
+argument switches the agent runtime behind the scenes, leaving the tools and
+prompts untouched. Three are built in: a built-in agent loop (RPent's own
+tool-calling loop), the Claude Agent SDK, and the Codex SDK — the latter two
+reuse the official runtimes. Because all three face the exact same tools, they
+can be compared head-to-head on the same physical benchmark. See
+:doc:`../usage/configure_planner` for the trade-offs and configuration.
 
-- **Built-in agent loop** — RPent's own tool-calling loop,
-  provider-agnostic.
-- **Claude Agent SDK** — reuses Anthropic's official agent runtime.
-- **Codex SDK** — reuses OpenAI Codex's agent runtime.
-
-See :doc:`../usage/configure_planner` for choosing and configuring them.
-
-**Environment decoupling.** The simulator or real robot runs as a
-standalone ``env_server`` that talks to the agent over lightweight RPC;
-the agent side imports no simulator and isn't tied to any specific
-environment. Swapping environments just means implementing the same
-``EnvClient`` interface — an env can be restarted on its own, moved to
-another machine, or switched from simulation straight to hardware,
-without touching the planner or tools. The GPU-side policy
-(``vla_server``) is a separate process too. Adding an environment
-doesn't even need registration code: drop a package under ``robots/``
-and the framework discovers it (see :doc:`add_robot`).
-
-**Live monitoring.** An optional ``--dashboard`` starts a local FastAPI
-monitor streaming the LLM's reasoning, live camera and Pi0 views, and an
-action timeline, with a bilingual UI (``--dashboard-language {en, zh-cn}``).
+**Environment decoupling, sim to real.** The simulator or real robot runs as a
+standalone ``env_server`` that talks to the agent over lightweight RPC; the
+agent side imports no simulator and isn't tied to any specific environment.
+Swapping environments just means implementing the same ``EnvClient`` interface
+— an env can be restarted on its own, moved to another machine, or switched
+from simulation straight to hardware, without touching the planner or tools.
+Adding an environment doesn't even need registration code: drop a package under
+``robots/`` and the framework discovers it. See :doc:`add_robot` for how to
+wire up a new environment.
 
 The agentic loop
 ----------------

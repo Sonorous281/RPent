@@ -11,14 +11,14 @@ RPent 把一个 env 拆成两个进程。
   primitive driver 逻辑和 prompt。
 - **Driver 侧**，即 ``robots/<env>/env_server.py``，持有重量级的仿真器或机器人，
   通过 :class:`rpent.utils.rpc.RpcFacade` 对外暴露 env。它默认走 HTTP，加
-  ``--transport socket`` 可以切到 pickle 分帧的 TCP 传输，适合观测形态偏大的场景。
+  ``--transport socket`` 可以切到 pickle 分帧的 TCP 传输，适合观测数据较大的场景。
 
 两侧通过一个 ``EnvClient`` 类相连，agent 侧的每次方法调用，对应一次发往 driver 的 RPC。
 
 VLA 模型跑在独立的进程里
 ------------------------
 
-当一个 env 用到 VLA 策略，也就是那种读相机观测、输出动作的学习模型时，这个模型
+当一个 env 用到 VLA 策略，也就是那种学出来的、读相机观测并输出动作的模型时，这个模型
 会跑在**第三个独立进程**里，绝不塞进 env_server。
 
 - **VLA 侧**，即 ``robots/<env>/vla_server.py``，只持有 VLA 策略，也就是 GPU 上的
@@ -44,7 +44,7 @@ VLA 模型跑在独立的进程里
 
 **任何需要仿真 env 对象的逻辑，都留在 env_server 里。** 拿 RoboCasa 这样的 env
 来说，抓取检测、动作组装这些操作都需要一个活着的仿真 env，因此它们是 env_server
-的 RPC，并不归 VLA server 管。于是 agent 侧的 skill 会同时握着两个客户端：env
+的 RPC，并不归 VLA server 管。于是 agent 侧的 primitive driver 会同时握着两个客户端：env
 客户端负责渲染和步进，模型客户端负责推理。
 
 入口
@@ -205,7 +205,7 @@ CLI 和 API 两份拷贝。
 
 **工具 schema 和 handler 辅助函数**，包括一个模块级的 ``TOOLS_SPEC`` 列表（采用
 Anthropic 的形状，每条含 ``name``、``description``、``input_schema``），以及 toolkit
-引用的 env 专属自由函数，比如 ``view_driver_state``、``back_project``。像 ``finish``
+引用的 env 专属模块级函数，比如 ``view_driver_state``、``back_project``。像 ``finish``
 这样的通用工具定义在 ``rpent/tools/common.py`` 里，由基类 ``Toolkit`` 自动注册，
 不必每个 env 重新定义一遍。
 

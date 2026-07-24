@@ -96,8 +96,8 @@ LIBERO toolkit 默认暴露这些工具：
   ``prompt`` 驱动，比如拧旋钮、开关炉灶、短推。
 - ``move_to(xyz)`` 是脚本化的 Cartesian 运动，移动到绝对世界坐标系下的目标点
   ``[x, y, z]``，单位是米，确定性执行，不走 VLA。
-- ``move_pose(xyz)`` 也是脚本化的 Cartesian 运动，但会同时协同调整位置和腕部
-  姿态（pitch 与 yaw），用于穿入柜门前、低矮层架等姿态，避免解耦伺服卡死。
+- ``move_pose(xyz)`` 也是脚本化的 Cartesian 运动，但会协同调整位置和腕部
+  姿态（pitch 与 yaw），用于柜门前、低矮层架等姿态，避免解耦伺服卡死。
 - ``rotate_wrist(target_yaw / delta_yaw)`` 是脚本化的腕关节旋转（绕世界 Z 轴），
   给一个绝对的 ``target_yaw`` 或相对的 ``delta_yaw``，单位是弧度。
 - ``rotate_pitch(target_pitch / delta_pitch)`` 是脚本化的夹爪俯仰（绕世界 X 轴），

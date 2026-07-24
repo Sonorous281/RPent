@@ -14,11 +14,11 @@ RPent 内置支持两大类 primitive。
   ``release``、``back_project``。它们不需要 VLA 权重，跑在 agent 侧，通过
   env_server 的 RPC 调用。
 
-每种机器人具体怎么配置，包括用哪个 VLA、检查点放在哪、暴露哪些工具，都参见对应的
+每种机器人具体怎么配置，包括用哪个 VLA、checkpoint 放在哪、暴露哪些工具，都参见对应的
 环境页面：:doc:`libero`、:doc:`robocasa`、:doc:`franka`、:doc:`so101`。
 
-不同 environment 用哪个 VLA
----------------------------
+不同环境用哪个 VLA
+------------------
 
 .. list-table::
    :header-rows: 1

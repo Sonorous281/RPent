@@ -5,7 +5,7 @@ RPent 里的 *action primitive*，就是把一次工具调用落地成环境可�
 东西。它可以是一个学出来的策略，比如 VLA、WAM、扩散规划器，也可以是一段脚本化
 的例程，比如 ``move_to``、``open_gripper``。本页说明这两类各自怎么加。
 
-两种 primitive 形状
+两种 primitive 形态
 -------------------
 
 .. list-table::
@@ -25,7 +25,7 @@ RPent 里的 *action primitive*，就是把一次工具调用落地成环境可�
      - ``move_to``、``rotate_wrist``、``release``、
        ``back_project``
 
-两种形状呈现给 LLM 的方式完全一样：一份 tool schema、一个 primitive-driver
+两种形态呈现给 LLM 的方式完全一样：一份 tool schema、一个 primitive-driver
 方法、调用之后一次状态 dump。区别只在于 *方法内部做什么*。
 
 添加一个脚本化 primitive
@@ -82,7 +82,7 @@ RPent 里的 *action primitive*，就是把一次工具调用落地成环境可�
    ``predict``。
 
    - 默认走 **HTTP**，也就是 JSON over ``POST /call``，适合扁平的
-     ``image + state`` 载荷，这是 LIBERO 和 Pi0.5 的模式。
+     ``image + state`` 数据，这是 LIBERO 和 Pi0.5 的模式。
    - 当观测是带历史堆叠的嵌套 numpy dict 时，切到 **socket RPC**
      (用 ``--transport socket``)，省掉 JSON 重编码的开销。
 
@@ -144,7 +144,7 @@ RPent 里的 *action primitive*，就是把一次工具调用落地成环境可�
 - **每个工具结束时都要 dump 状态。** 下一轮依赖这份 dump 来反映动作之后的世界，
   所以别在渲染完成之前就让 primitive 提前返回。
 - **返回一个小 dict。** 工具的返回值会以文本形式喂回 LLM，控制在几百字节以内。
-  图像、深度、``states.json`` 这类大载荷走 state dump，以图像内容块的形式回传。
+  图像、深度、``states.json`` 这类大块数据走 state dump，以图像内容块的形式回传。
 - **护栏属于 env_server，不属于 toolkit。** LLM 会用任意参数调任意工具，所以
   工作空间边界和安全钳位必须在 driver 侧强制执行。
 
@@ -155,10 +155,10 @@ RPent 里的 *action primitive*，就是把一次工具调用落地成环境可�
 
 - **世界动作模型 (WAM)** 基于想象做 rollout，产出一个计划交给 env 执行。接法和
   VLA 一模一样：自己的进程、自己的客户端。
-- **扩散规划器或 MPC** 形状也一样，只是工具返回的"动作"可能是一整段轨迹而非
+- **扩散规划器或 MPC** 形态也一样，只是工具返回的"动作"可能是一整段轨迹而非
   单个 chunk，由 env_server 一步步走完。
 - **多个 primitive 共享一个 server**：一个 vla_server 可以承载多个模型，
   由工具通过 ``predict`` 的 ``model`` 参数选调哪个 head。
 
-无论形状如何，框架的契约始终不变：模型进程交给模型客户端，客户端交给
+无论形态如何，框架的契约始终不变：模型进程交给模型客户端，客户端交给
 primitive driver 方法，再配上 tool schema，最后用 ``Toolkit.add_tool`` 注册。

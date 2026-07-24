@@ -38,30 +38,25 @@ RPent 建立在三条核心设计原则之上。
 
 这一节聚焦 RPent 区别于其他具身智能体框架的几个设计选择。
 
-**LLM 作为 planner。** 这是 RPent 与多数具身智能体最根本的不同：后者端到端训练
-一个策略模型直接输出动作，RPent 则让一个通用 LLM 充当 planner，靠推理
-和工具调用来指挥机器人，VLA、脚本化动作只是它能调用的底层能力。每次工具调用的
-返回（文本加图像）都喂回给它，让它对着实际看到的画面决定下一步。这样就用上了
-LLM 的通用推理和临场纠错，而不必为每个新任务重新训练模型。
+**VLA 作为可重试的工具。** RPent 不端到端训练一个策略模型直接输出动作，而是让
+一个通用 LLM 充当 planner，把冻结的 VLA 当作 ``pi0_pick``、``pi0_doubled`` 这样
+的动作 primitive 来调用，和 ``move_to``、``rotate_wrist`` 等脚本化工具并列在同一
+套 tool schema 里。每次调用的返回（文本加图像）都喂回 LLM，让它对着实际看到的
+画面决定下一步；再配合每个环境的记忆，planner 知道 VLA 在什么条件下可靠。这样就
+用上了 LLM 的通用推理和临场纠错，而不必为每个新任务重新训练模型。怎么加一个新
+primitive，见 :doc:`add_primitive`。
 
-planner 本身也可以替换，内置三种后端：
+**planner 可以替换，三种后端对称。** 换一个 ``--planner`` 参数就切换背后的
+agent runtime，工具和 prompt 都不用动。内置三种：自研 agent loop（RPent 自己的
+工具调用循环）、Claude Agent SDK、Codex SDK，后两者复用官方 runtime。因为三者
+面对的工具完全一样，可以在同一个物理 benchmark 上直接横比。取舍和配置见
+:doc:`../usage/configure_planner`。
 
-- **自研 agent loop**：RPent 自己的工具调用循环，与具体 provider 无关。
-- **Claude Agent SDK**：复用 Anthropic 官方的 agent runtime。
-- **Codex SDK**：复用 OpenAI Codex 的 agent runtime。
-
-三者的取舍和具体配置，见 :doc:`../usage/configure_planner`。
-
-**环境解耦。** 仿真器和真机都作为独立的 env_server 运行，只通过一套轻量 RPC
-和 agent 通信；agent 这边不 import 任何仿真器，也不绑定具体环境。于是换环境只要
-实现同一套 ``EnvClient`` 接口，env 就能单独重启、迁到另一台机器，或从仿真直接切到
-真机，planner 和工具都不用动。GPU 上的策略（vla_server）同样是独立进程，和
-推理、仿真互不拖累。新增环境甚至不用改注册代码，把包放进 ``robots/`` 目录框架就会
-自动发现，详见 :doc:`add_robot`。
-
-**实时监控。** 加上 ``--dashboard`` 会启动一个本地 FastAPI 监控页，实时展示 LLM
-的推理过程、相机与 Pi0 视图，以及动作时间线，界面支持中英双语
-（``--dashboard-language {en, zh-cn}``）。
+**环境解耦，仿真到真机。** 仿真器和真机都作为独立的 env_server 运行，只通过一套
+轻量 RPC 和 agent 通信；agent 这边不 import 任何仿真器，也不绑定具体环境。于是
+换环境只要实现同一套 ``EnvClient`` 接口，env 就能单独重启、迁到另一台机器，或从
+仿真直接切到真机，planner 和工具都不用动。新增环境甚至不用改注册代码，把包放进
+``robots/`` 目录，框架就会自动发现。怎么接一个新环境，见 :doc:`add_robot`。
 
 智能体循环
 ----------
@@ -70,7 +65,7 @@ planner 本身也可以替换，内置三种后端：
 
 1. LLM 分析任务，调用一个工具，比如 ``pi0_pick``。
 2. 工具背后的 primitive driver 向 vla_server 请求一段动作 chunk（``predict``）。
-3. env_server 执行这段 chunk（LIBERO 的 ``chunk_step`` 一次走完整段）。
+3. env_server 执行这段 chunk（LIBERO 的 ``chunk_step`` 一次走完一整段）。
 4. 环境渲染出新的观测和相机画面。
 5. 结果组装成文本加图像的内容块，喂回给 LLM 进入下一轮。
 

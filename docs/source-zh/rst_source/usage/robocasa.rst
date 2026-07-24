@@ -26,10 +26,10 @@ RoboCasa 覆盖了标准的厨房基准任务：
 Toolkit 与 LIBERO 的差异
 ------------------------
 
-RoboCasa toolkit 的工具 *形状* 和 LIBERO 一样，都是一次 primitive 调用、
+RoboCasa toolkit 的工具 *构成* 和 LIBERO 一样，都是一次 primitive 调用、
 一次状态查看、一次 ``finish``，但有两点是它特有的。
 
-- **Env 侧的辅助方法。** 抓取检测和动作组装都需要一个活着的仿真环境，所以
+- **Env 侧的辅助方法。** 抓取检测和动作组装都需要一个在运行的仿真环境，所以
   它们做成了 env_server 的 RPC。这样一来，agent 侧的 skill 会同时握着两个
   客户端：env 客户端负责渲染和步进，模型客户端负责 RLDX-1 推理。理由参见
   :doc:`../development/add_robot`。

@@ -3,7 +3,7 @@
 
 扩展 RPent 时，你要对接的就是下面这几个小而稳定的接口：加一个新环境、
 写一个新 planner，或接入一种新传输，各自实现对应的接口即可。本页把它们
-集中在一处。手把手的操作步骤见 :doc:`add_robot` 和 :doc:`add_primitive`,
+集中在一处。手把手的操作步骤见 :doc:`add_robot` 和 :doc:`add_primitive`，
 整体设计见 :doc:`architecture`。
 
 环境入口
@@ -59,11 +59,11 @@ Toolkit 接口
 内置支持两种传输编码，在服务端用 ``--transport {http,socket}`` 选择(默认
 ``http``)，客户端则由 ``--env-endpoint`` / ``--vla-endpoint`` 里的协议前缀对应。
 
-- **HTTP** 编码在 ``rpent.utils.http_rpc`` 中实现：JSON 请求体走 ``POST /call``,
+- **HTTP** 编码在 ``rpent.utils.http_rpc`` 中实现：JSON 请求体走 ``POST /call``，
   便于套用标准的负载均衡，也便于跨语言客户端接入。Numpy 数组在传输时会带上标签
   ``{"__ndarray__": <base64>, "dtype": ..., "shape": [...]}``。
 - **Socket RPC** 编码在 ``rpent.utils.socket_rpc`` 中实现，采用 pickle 分帧：
-  适合历史堆叠的嵌套 numpy dict，以及那些又宽又不规则、用 JSON 重编码太浪费的载荷。
+  适合历史堆叠的嵌套 numpy dict，以及那些又宽又不规则、用 JSON 重编码太浪费的数据。
 
 服务端只要继承 :class:`rpent.utils.rpc.RpcFacade` 并实现
 ``_dispatch(method, args, kwargs)``；关闭、健康检查、传输绑定、感知父进程退出、

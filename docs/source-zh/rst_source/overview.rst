@@ -25,16 +25,17 @@ RPent 建立在三条核心设计原则之上：服务化、标准化、可组�
 - **VLA 被当作可重试的工具，而非端到端执行器。** VLA 权重全程冻结，封装成
   ``pi0_pick``、``pi0_doubled`` 这样的动作 primitive，和 ``move_to``、
   ``rotate_wrist``、``back_project`` 等脚本化工具并列在同一套 tool schema 里，
-  由 planner 按需调用。每个环境还配一份记忆，记录哪些 prompt 和判据能让 VLA
-  稳定工作，planner 据此知道何时、以及如何调用它。记忆怎么组织、怎么加载，见
+  由 planner 按需调用。每个环境还配一份记忆，记录什么样的 prompt、在什么条件下能让 VLA
+  稳定工作，planner 据此知道何时、如何调用它。记忆怎么组织、怎么加载，见
   :doc:`development/memory`。
 - **同一套工具，三种 planner，可直接横比。** ``--planner {api, claude_code,
   codex}`` 让完全相同的 toolkit 分别跑在 pydantic-ai 循环、Claude Agent SDK、
   Codex SDK 之上。因为工具完全相同，不同 planner 可以在同一个物理 benchmark
   上直接对比。
-- **planner、仿真、GPU 权重各占独立进程。** planner 那侧不 import torch，
-  env_server 独占 EGL 渲染与物理引擎，vla_server 独占 GPU 权重。这种按职责的
-  拆分平时很少被提及，却往往决定了一个研究原型能不能规模化。
+- **仿真环境是隔离的，能独立替换、从仿真走到真机。** 仿真器（或真机）跑在
+  独立的 env_server 里，和推理、模型权重都隔开；换环境只要实现同一套接口，它
+  就能单独重启、迁到别的机器，或从仿真直接切到真机。正是这种隔离，让 RPent 能
+  从原型走向规模化。
 
 功能矩阵
 --------

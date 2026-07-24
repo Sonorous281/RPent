@@ -38,7 +38,7 @@ RPent 的推理大脑，也就是 planner，用一个命令行参数来选：
 --------------------------------
 
 ``--planner api`` 跑的是一段手写的 pydantic-ai 循环。它是默认值，可移植性也最好，
-凡是讲 Anthropic Messages API、OpenAI Responses API，或 OpenAI 兼容 chat API 的
+凡是支持 Anthropic Messages API、OpenAI Responses API，或 OpenAI 兼容 chat API 的
 提供方都能接。
 
 用 ``--model`` 的前缀来选提供方：
@@ -153,5 +153,5 @@ env server。接口参见 :doc:`../development/interfaces`；想给自定义大�
 - ``--max-turns`` 限制 *工具调用的总轮数*。单个 LIBERO 任务通常不超过 30 轮，
   RoboCasa 的长时序任务可能接近默认的 ``100``。
 
-两个上限触达时都会以 ``finish(stuck)`` 优雅收尾，不会硬崩，所以可以放心调参，
+两个上限，哪个先到都会以 ``finish(stuck)`` 优雅收尾，不会硬崩，所以可以放心调参，
 transcript 不会丢。

@@ -17,7 +17,7 @@ RPent 里的 *action primitive*，就是把一次工具调用落地成环境可�
      - 例子
    * - **基于模型的**
        (VLA、WAM、扩散等)
-     - 自己的进程 ``vla_server``，通过 toolkit 持有的模型客户端调用。
+     - 自己的进程 vla_server，通过 toolkit 持有的模型客户端调用。
      - Pi0.5 (LIBERO)、RLDX-1 (RoboCasa)
    * - **脚本化的**
        (运动学或启发式)
@@ -132,7 +132,7 @@ RPent 里的 *action primitive*，就是把一次工具调用落地成环境可�
 
    rpent --env libero --vla-endpoint http://vla-host:8000 ...
 
-把你的 ``vla_server`` 设计成与任务无关：LIBERO 参考实现在启动时只加载一次模型，
+把你的 vla_server 设计成与任务无关：LIBERO 参考实现在启动时只加载一次模型，
 之后每次 ``predict`` 调用都彼此独立，因此不需要 reset RPC，一个进程就能安全地
 连续服务很多次运行。
 
@@ -156,8 +156,8 @@ RPent 里的 *action primitive*，就是把一次工具调用落地成环境可�
 - **世界动作模型 (WAM)** 基于想象做 rollout，产出一个计划交给 env 执行。接法和
   VLA 一模一样：自己的进程、自己的客户端。
 - **扩散规划器或 MPC** 形状也一样，只是工具返回的"动作"可能是一整段轨迹而非
-  单个 chunk，由 ``env_server`` 一步步走完。
-- **多个 primitive 共享一个 server**：一个 ``vla_server`` 可以承载多个模型，
+  单个 chunk，由 env_server 一步步走完。
+- **多个 primitive 共享一个 server**：一个 vla_server 可以承载多个模型，
   由工具通过 ``predict`` 的 ``model`` 参数选调哪个 head。
 
 无论形状如何，框架的契约始终不变：模型进程交给模型客户端，客户端交给

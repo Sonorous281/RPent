@@ -12,63 +12,56 @@
 --------
 
 **RPent (Recursive Physical Agent)** 是一个用于构建具身智能体的开源框架，
-让智能体通过与物理世界的递归交互持续进化。它不预设某一个基础模型，而是把
+让智能体通过与物理世界的递归交互持续进化。它把
 感知、推理、记忆、执行、自我进化这些异构能力融合到一个统一的物理智能体中。
 凭借持续的交互、反思与适应，智能体能够习得新能力，超越其初始设计。
 
 RPent 建立在三条核心设计原则之上。
 
 **服务化。** 各项能力都以可复用的服务形式部署，比如 VLA 策略服务、环境
-服务、记忆语料库，每一个都能独立扩缩容、重启或替换。
+服务，每一个都能独立扩缩容、重启或替换。
 
-**标准化。** 所有服务通过统一的接口连接：一套 ``Planner`` 协议、一套通用的
-``Toolkit`` API、一套共享的 RPC 底座。异构的能力模块因此无需胶水代码即可组合。
+**标准化。** 通过统一的接口：一套 ``Planner`` 协议、一套通用的
+``Toolkit`` API、一套共享的 RPC 底座。智能体的各项能力模块通过标准化进行组合。
 
-**可组合。** 服务可以灵活拼装成各式各样的物理智能体。换一个 planner、混用来自
+**可组合。** 可以灵活拼装成各式各样的物理智能体。可以自由灵活的更换 planner 能力、混用来自
 不同 VLA 的动作 primitive、接入新仿真器、加上记忆，都不必改动其余部分。
 
 这三条原则让 RPent 跳出传统机器人控制框架的范畴，成为一套面向物理世界的
 智能体基础设施：智能不只是被部署，还在被持续地构建、扩展和进化。
 
-下面几节讲清楚这套架构是怎么落地的：三个进程各自负责什么、彼此如何通信，
-以及代码在 ``rpent/`` 和 ``robots/`` 下如何组织。
+下面几节讲清楚这套架构怎么落地：运行时各部分如何分工、彼此如何通信，以及
+代码在 ``rpent/`` 和 ``robots/`` 下如何组织。
 
 关键特性
 --------
 
-以下是这套架构围绕的几点框架级承诺，后面各节会展开每一项的实现。
+这一节聚焦 RPent 区别于其他具身智能体框架的几个设计选择。
 
-**LLM 全程在环。** LLM 不做微调，它完全靠调用工具（``pi0_pick``、
-``move_to``、``rotate_wrist``、``back_project``、``finish`` 等）来驱动机器人。
-每个工具的返回都作为多模态上下文（文本加渲染图）喂回去，让模型基于它实际
-看到的画面来推理。
+**LLM 作为 planner。** 这是 RPent 与多数具身智能体最根本的不同：后者端到端训练
+一个策略模型直接输出动作，RPent 则让一个通用 LLM 充当 planner，靠推理
+和工具调用来指挥机器人，VLA、脚本化动作只是它能调用的底层能力。每次工具调用的
+返回（文本加图像）都喂回给它，让它对着实际看到的画面决定下一步。这样就用上了
+LLM 的通用推理和临场纠错，而不必为每个新任务重新训练模型。
 
-**三进程架构。** 系统由三个独立进程组成：Agent 进程运行 LLM planner 和
-toolkit，不依赖 GPU；``env_server`` 负责仿真与 EGL 渲染；``vla_server`` 持有
-GPU 上的策略权重。三者用轻量 RPC 串在一起，任何一个重量级进程都可以单独重启、
-迁到另一张 GPU，或指向远程主机。
+planner 本身也可以替换，内置三种后端：
 
-**可插拔的推理大脑。** 决策大脑用一个 ``--planner`` 参数就能替换，不必改动
-工具或 prompt，内置三种可选：
+- **自研 agent loop**：RPent 自己的工具调用循环，与具体 provider 无关。
+- **Claude Agent SDK**：复用 Anthropic 官方的 agent runtime。
+- **Codex SDK**：复用 OpenAI Codex 的 agent runtime。
 
-- ``api``：基于 `pydantic-ai <https://ai.pydantic.dev/>`_ 的工具调用循环，
-  与具体 provider 无关（兼容 Anthropic、OpenAI 及 OpenAI 兼容接口），
-  自带 prompt 缓存和历史图片剪枝。
-- ``claude_code``：`Claude Agent SDK
-  <https://docs.claude.com/en/api/agent-sdk/overview>`_，把 toolkit 暴露成一个
-  进程内的 MCP server。
-- ``codex``：OpenAI Codex SDK，通过一个 HTTP MCP server 桥接到 toolkit。
+三者的取舍和具体配置，见 :doc:`../usage/configure_planner`。
 
-**一份契约，多种环境。** env 与 vla 的进程拆分是一份通用契约。LIBERO（Pi0.5
-走 HTTP）是已发布的参考实现，RoboCasa（RLDX-1 走 socket RPC）仍在开发中。
-接入新环境只需实现同一套接口，随环境观测形状变化的只有底层的传输编码。
+**环境解耦。** 仿真器和真机都作为独立的 env_server 运行，只通过一套轻量 RPC
+和 agent 通信；agent 这边不 import 任何仿真器，也不绑定具体环境。于是换环境只要
+实现同一套 ``EnvClient`` 接口，env 就能单独重启、迁到另一台机器，或从仿真直接切到
+真机，planner 和工具都不用动。GPU 上的策略（vla_server）同样是独立进程，和
+推理、仿真互不拖累。新增环境甚至不用改注册代码，把包放进 ``robots/`` 目录框架就会
+自动发现，详见 :doc:`add_robot`。
 
-**实时 dashboard。** 加上 ``--dashboard`` 会启动一个本地 FastAPI 监控页，实时
-展示智能体的推理过程、相机与 Pi0 视图，以及动作时间线，界面支持中英双语
+**实时监控。** 加上 ``--dashboard`` 会启动一个本地 FastAPI 监控页，实时展示 LLM
+的推理过程、相机与 Pi0 视图，以及动作时间线，界面支持中英双语
 （``--dashboard-language {en, zh-cn}``）。
-
-**新增环境无需改动任何注册代码。** 只要把包放进 ``robots/`` 目录，框架就会
-自动发现它，不用在别处登记，详见 :doc:`add_robot`。
 
 智能体循环
 ----------
@@ -76,8 +69,8 @@ GPU 上的策略权重。三者用轻量 RPC 串在一起，任何一个重量�
 一次运行就是一段 LLM 全程在环的循环：
 
 1. LLM 分析任务，调用一个工具，比如 ``pi0_pick``。
-2. 工具背后的 primitive driver 向 ``vla_server`` 请求一段动作 chunk（``predict``）。
-3. ``env_server`` 执行这段 chunk（LIBERO 的 ``chunk_step`` 一次走完整段）。
+2. 工具背后的 primitive driver 向 vla_server 请求一段动作 chunk（``predict``）。
+3. env_server 执行这段 chunk（LIBERO 用 ``chunk_step``，RoboCasa 逐步 ``step``）。
 4. 环境渲染出新的观测和相机画面。
 5. 结果组装成文本加图像的内容块，喂回给 LLM 进入下一轮。
 
@@ -111,7 +104,7 @@ Runner
 ------
 
 ``rpent/cli/main.py`` 是整场运行的编排者，负责把三个进程拉起来、接上线，
-再交给推理循环。它先拉起 ``env_server`` 和 ``vla_server`` 两个子进程，等它们
+再交给推理循环。它先拉起 env_server 和 vla_server 两个子进程，等它们
 就绪后，为所选环境构造 toolkit，并按参数选定的 planner 构造决策大脑，最后跑起
 工具调用循环，把结果落盘。日常会用到的命令行参数在 :doc:`../quickstart` 里介绍。
 

@@ -1,18 +1,18 @@
 Action Primitives
 =================
 
-Planner 决定 *做什么*，而 **action primitive** 决定 *怎么做*。所谓 primitive，
+planner 决定 *做什么*，而 **action primitive** 决定 *怎么做*。所谓 primitive，
 就是把一次工具调用（比如 ``pi0_pick``、``move_to``、``set_gripper``）落地成
 一段能直接交给环境执行的动作。
 
 RPent 内置支持两大类 primitive。
 
-- **VLA 策略**，即视觉-语言-动作模型。它跑在专门的 ``vla_server`` 进程里，
+- **VLA 策略**，即视觉-语言-动作模型。它跑在专门的 vla_server 进程里，
   把 GPU 权重和物理引擎隔开，toolkit 通过每个环境各自的模型客户端来调用它。
   Pi0.5（用于 LIBERO）和 RLDX-1（用于 RoboCasa）都属于这一类。
 - **脚本化 primitive**，即确定性的运动，比如 ``move_to``、``rotate_wrist``、
   ``release``、``back_project``。它们不需要 VLA 权重，跑在 agent 侧，通过
-  ``env_server`` 的 RPC 调用。
+  env_server 的 RPC 调用。
 
 每种机器人具体怎么配置，包括用哪个 VLA、检查点放在哪、暴露哪些工具，都参见对应的
 环境页面：:doc:`libero`、:doc:`robocasa`、:doc:`franka`、:doc:`so101`。

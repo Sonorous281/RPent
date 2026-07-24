@@ -26,6 +26,27 @@ Together, these principles allow RPent to move beyond traditional robot control 
 and establish an agentic infrastructure for the physical world, where intelligence 
 is not only deployed, but continuously built, expanded, and evolved.
 
+Concretely, RPent stands out in three ways:
+
+- **The VLA is treated as a retryable tool, not an end-to-end executor.**
+  The VLA weights stay frozen throughout; the policy is wrapped as action
+  primitives like ``pi0_pick`` and ``pi0_doubled``, sitting alongside
+  scripted tools such as ``move_to``, ``rotate_wrist``, and ``back_project``
+  in one common tool schema for the planner to call on demand. Each
+  environment also carries a memory of which prompts and predicates make the
+  VLA reliable, so the planner knows when and how to invoke it. See
+  :doc:`development/memory` for how the memory is organized and loaded.
+- **One tool surface, three planners, directly comparable.**
+  ``--planner {api, claude_code, codex}`` drives the exact same toolkit with
+  a pydantic-ai loop, the Claude Agent SDK, or the Codex SDK. Because the
+  tool surface is identical, different planners can be compared head-to-head
+  on the same physical benchmark.
+- **The planner, simulation, and GPU weights each get their own process.**
+  The planner side imports no torch, the env_server owns EGL rendering and
+  the physics engine, and the vla_server owns the GPU weights. This split by
+  responsibility is rarely discussed, yet often decides whether a research
+  prototype can scale.
+
 Feature Matrix
 --------------
 

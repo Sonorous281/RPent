@@ -20,6 +20,22 @@ RPent 建立在三条核心设计原则之上：服务化、标准化、可组�
 让 RPent 跳出传统机器人控制框架的范畴，成为一套面向物理世界的智能体基础设施：
 智能不只是被部署，还在被持续地构建、扩展与演进。
 
+具体来说，RPent 有三点与众不同：
+
+- **VLA 被当作可重试的工具，而非端到端执行器。** VLA 权重全程冻结，封装成
+  ``pi0_pick``、``pi0_doubled`` 这样的动作 primitive，和 ``move_to``、
+  ``rotate_wrist``、``back_project`` 等脚本化工具并列在同一套 tool schema 里，
+  由 planner 按需调用。每个环境还配一份记忆，记录哪些 prompt 和判据能让 VLA
+  稳定工作，planner 据此知道何时、以及如何调用它。记忆怎么组织、怎么加载，见
+  :doc:`development/memory`。
+- **同一套工具，三种 planner，可直接横比。** ``--planner {api, claude_code,
+  codex}`` 让完全相同的 toolkit 分别跑在 pydantic-ai 循环、Claude Agent SDK、
+  Codex SDK 之上。因为工具完全相同，不同 planner 可以在同一个物理 benchmark
+  上直接对比。
+- **planner、仿真、GPU 权重各占独立进程。** planner 那侧不 import torch，
+  env_server 独占 EGL 渲染与物理引擎，vla_server 独占 GPU 权重。这种按职责的
+  拆分平时很少被提及，却往往决定了一个研究原型能不能规模化。
+
 功能矩阵
 --------
 

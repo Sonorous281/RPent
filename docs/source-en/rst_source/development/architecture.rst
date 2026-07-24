@@ -85,7 +85,7 @@ around; the sections below then show how each is implemented.)*
 - **Add an environment by dropping a package on disk.** No central
   registry to edit — see :doc:`add_robot`.
 
-The runtime loop
+The agentic loop
 ----------------
 
 A single run is an LLM-in-the-loop cycle:

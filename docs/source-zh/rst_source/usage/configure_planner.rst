@@ -34,7 +34,7 @@ RPent 的推理大脑，也就是 planner，用一个命令行参数来选：
      - 想用 Codex 的 agent 运行时，或者手头已经有 OpenAI、Codex 的
        配额可用。
 
-``api`` planner (自定义 / 轻量)
+``api`` planner（自定义、轻量）
 --------------------------------
 
 ``--planner api`` 跑的是一段手写的 pydantic-ai 循环。它是默认值，可移植性也最好，

@@ -17,11 +17,11 @@ RPent 里的 *action primitive*，就是把一次工具调用落地成环境可�
      - 例子
    * - **基于模型的**
        (VLA、WAM、扩散等)
-     - 自己的进程 ``vla_server``, 通过 toolkit 持有的模型客户端调用。
+     - 自己的进程 ``vla_server``，通过 toolkit 持有的模型客户端调用。
      - Pi0.5 (LIBERO)、RLDX-1 (RoboCasa)
    * - **脚本化的**
        (运动学或启发式)
-     - agent 进程内, 需要运动学时可能走一次 driver 侧 RPC, 没有模型权重。
+     - agent 进程内，需要运动学时可能走一次 driver 侧 RPC，没有模型权重。
      - ``move_to``、``rotate_wrist``、``release``、
        ``back_project``
 
@@ -81,10 +81,10 @@ RPent 里的 *action primitive*，就是把一次工具调用落地成环境可�
    :class:`rpent.utils.rpc.RpcFacade`，通过 ``_dispatch`` 暴露模型方法，比如
    ``predict``。
 
-   - 默认走 **HTTP**, 也就是 JSON over ``POST /call``, 适合扁平的
+   - 默认走 **HTTP**，也就是 JSON over ``POST /call``，适合扁平的
      ``image + state`` 载荷，这是 LIBERO 和 Pi0.5 的模式。
-   - 当观测是带历史堆叠的嵌套 numpy dict 时, 切到 **socket RPC**
-     (用 ``--transport socket``), 省掉 JSON 重编码的开销。
+   - 当观测是带历史堆叠的嵌套 numpy dict 时，切到 **socket RPC**
+     (用 ``--transport socket``)，省掉 JSON 重编码的开销。
 
    ``RpcFacade.serve`` 会负责传输绑定、``healthz``、``shutdown``、感知父进程
    退出这些杂事，你只需要写模型相关的方法。
@@ -132,7 +132,7 @@ RPent 里的 *action primitive*，就是把一次工具调用落地成环境可�
 
    rpent --env libero --vla-endpoint http://vla-host:8000 ...
 
-把你的 ``vla_server`` 设计成与任务无关: LIBERO 参考实现在启动时只加载一次模型，
+把你的 ``vla_server`` 设计成与任务无关：LIBERO 参考实现在启动时只加载一次模型，
 之后每次 ``predict`` 调用都彼此独立，因此不需要 reset RPC，一个进程就能安全地
 连续服务很多次运行。
 

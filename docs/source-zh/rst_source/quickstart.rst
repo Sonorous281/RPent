@@ -122,7 +122,7 @@
 3. 当 LLM 调用 ``finish(status, summary)`` 且 ``status="success"``
    (或 ``"failure"`` / ``"stuck"``) 时结束；触达
    ``--max-turns`` / ``--max-episode-steps`` 上限时也会结束。
-4. 写出两份产物: ``<output_dir>/transcript_*.json`` 记录逐轮的完整对话，
+4. 写出两份产物：``<output_dir>/transcript_*.json`` 记录逐轮的完整对话，
    ``<output_dir>/episode.mp4`` 是渲染出的运行录像。
 
 万一出了问题，可以查 :doc:`installation` 页底部提到的三份日志文件。

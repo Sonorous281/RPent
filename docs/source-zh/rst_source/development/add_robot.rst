@@ -32,8 +32,8 @@ VLA 模型跑在独立的进程里
 的：模型带着庞大的 GPU 权重、自己的 CUDA 上下文，以及 ``transformers``、``openpi``
 这类重依赖；仿真器则是 MuJoCo、robosuite，还有绑在主线程上的 EGL 渲染。把两者塞进
 同一个进程，会让它们的生命周期耦在一起，逼一个解释器同时满足两套依赖树，而且模型
-一旦 OOM 就会连带拖垮仿真。拆开之后，任何一侧都能独立重启、扩容或指向远程主机，用
-远程主机，用 ``--vla-endpoint host:port`` 就能复用一个已经在跑的模型 server。所以
+一旦 OOM 就会连带拖垮仿真。拆开之后，任何一侧都能独立重启、扩容或指向远程主机，
+用 ``--vla-endpoint host:port`` 就能复用一个已经在跑的模型 server。所以
 每个 env 都必须守住这条线：env_server 持有仿真，vla_server 持有模型。
 
 **传输协议可以随 env 变，但架构不能变。** LIBERO 默认让 env_server 和 vla_server
@@ -43,7 +43,7 @@ VLA 模型跑在独立的进程里
 编解码方式，但 env 与 vla 的进程分离始终保持一致。
 
 **任何需要仿真 env 对象的逻辑，都留在 env_server 里。** 拿 RoboCasa 这样的 env
-来说，来说，抓取检测、动作组装这些操作都需要一个活着的仿真 env，因此它们是 env_server
+来说，抓取检测、动作组装这些操作都需要一个活着的仿真 env，因此它们是 env_server
 的 RPC，并不归 VLA server 管。于是 agent 侧的 skill 会同时握着两个客户端：env
 客户端负责渲染和步进，模型客户端负责推理。
 
@@ -81,7 +81,7 @@ VLA 模型跑在独立的进程里
 
 整个注册流程就这么多。``_resolve_env(name)`` 通过
 ``importlib.import_module(f"robots.{name}")`` 动态加载，所以把包放到 ``robots/``
-下就够了，没有中央列表需要维护。
+下就够了，不用在别处登记。
 
 下面三节分别说明上面引用的三个模块各自要写什么。
 
@@ -198,7 +198,7 @@ CLI 和 API 两份拷贝。
 
 一个 toolkit 模块通常包含四部分。
 
-**Primitive driver 类**, 比如 ``MyEnvPrimitives``, 是 toolkit 持有的 Python 对象。
+**Primitive driver 类**，比如 ``MyEnvPrimitives``，是 toolkit 持有的 Python 对象。
 它保存 ``EnvClient``、VLA 模型客户端和本次运行的各种状态，每个 primitive 工具
 (``move_to``、``pi0_pick``、``release`` 等) 对应它上面的一个方法，返回一个 ``dict``
 形式的日志。
@@ -225,7 +225,7 @@ Anthropic 的形状，每条含 ``name``、``description``、``input_schema``）
   agentview 的 MP4。
 
 ``primitives_kwargs`` 由 ``__init__.py`` 的 ``get_toolkit`` 转发进来，toolkit 把它
-原样传给 primitive driver 的 ``__init__``，通常长这样:
+原样传给 primitive driver 的 ``__init__``，通常长这样：
 ``{"env": MyEnvClient(...), "model": VLAClient(...), ...}``。
 
 值得遵循的约定

@@ -74,14 +74,14 @@ Pi0.5 只需要一件事：磁盘上的 checkpoint。通过 ``PI05_CHECKPOINT_PA
 进程分工
 --------
 
-- **env_server**, 也就是 ``robots/libero/env_server.py``, 持有 LIBERO 的
+- **env_server**，也就是 ``robots/libero/env_server.py``，持有 LIBERO 的
   MuJoCo env 和 EGL 渲染。它通过 RPC 传输对外暴露 ``reset``、``step``、
   ``chunk_step``、``render_camera(camera_name="agentview")``、``get_camera_meta``、
   ``cached_image`` 等方法，默认走 HTTP，加 ``--transport socket`` 则走 pickle
   分帧的 socket。
-- **vla_server**, 也就是 ``robots/libero/vla_server.py``, 持有 Pi0.5 权重，
+- **vla_server**，也就是 ``robots/libero/vla_server.py``，持有 Pi0.5 权重，
   通过同一套 RPC 传输（HTTP 或 socket）暴露 ``predict``。
-- **Toolkit**, 也就是 ``robots/libero/toolkit.py``, 定义 LLM 能调的工具，比如
+- **Toolkit**，也就是 ``robots/libero/toolkit.py``，定义 LLM 能调的工具，比如
   ``pi0_pick``（交给 Pi0.5）、``move_to``、``rotate_wrist``、``back_project``、
   ``view_driver_state``、``finish`` 等。
 
@@ -95,7 +95,7 @@ LIBERO toolkit 默认暴露这些工具：
 - ``pi0_doubled(prompt)`` 调用 Pi0.5 生成一次非抓取的接触动作块，同样由
   ``prompt`` 驱动，比如拧旋钮、开关炉灶、短推。
 - ``move_to(xyz)`` 是脚本化的 Cartesian 运动，移动到绝对世界坐标系下的目标点
-  ``[x, y, z]``, 单位是米，确定性执行，不走 VLA。
+  ``[x, y, z]``，单位是米，确定性执行，不走 VLA。
 - ``move_pose(xyz)`` 也是脚本化的 Cartesian 运动，但会同时协同调整位置和腕部
   姿态（pitch 与 yaw），用于穿入柜门前、低矮层架等姿态，避免解耦伺服卡死。
 - ``rotate_wrist(target_yaw / delta_yaw)`` 是脚本化的腕关节旋转（绕世界 Z 轴），

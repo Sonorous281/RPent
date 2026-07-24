@@ -41,7 +41,7 @@ PyPI 拉取已发布的 openpi 与 LIBERO 仿真器包。
    * - Extra
      - 安装内容
    * - ``.[full]``
-     - ``rlinf`` + ``openpi`` + ``libero-pro``, 默认运行组合
+     - ``rlinf`` + ``openpi`` + ``libero-pro``，默认运行组合
    * - ``.[libero-pro]``
      - 仅基础 LIBERO + LIBERO-PRO 仿真器
    * - ``.[libero-plus]``
@@ -85,7 +85,7 @@ Franka 和 SO-101 的支持正在逐步接入。每个机器人的驱动都会�
 最快的验证办法是端到端跑通一个 LIBERO 任务，具体步骤见 :doc:`quickstart`。
 只要跑通，就说明 env server、VLA server 和推理大脑三者都正常。
 
-万一出错，可以按下面三份日志排查:
+万一出错，可以按下面三份日志排查：
 
 - env server 的标准输出和标准错误都写到 ``<output_dir>/env_server.log``。
 - VLA server 的日志在 ``<output_dir>/vla_server.log``。

@@ -41,7 +41,7 @@ RPent 的推理大脑，也就是 planner，用一个命令行参数来选：
 凡是讲 Anthropic Messages API、OpenAI Responses API，或 OpenAI 兼容 chat API 的
 提供方都能接。
 
-用 ``--model`` 的前缀来选提供方:
+用 ``--model`` 的前缀来选提供方：
 
 .. code-block:: bash
 

@@ -3,7 +3,8 @@ Add a New Robot
 
 This guide walks through what you need to write to plug a new physical /
 simulated robot into RPent's LLM-in-the-loop runner. Use
-``robots/libero/`` as the worked reference.
+``robots/libero/`` as the worked reference. For a summary of the
+interfaces each module implements, see :doc:`interfaces` first.
 
 RPent splits an env into two processes:
 

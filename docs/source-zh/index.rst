@@ -93,6 +93,7 @@
    :caption: 开发教程
 
    系统设计 <rst_source/development/architecture>
+   核心接口 <rst_source/development/interfaces>
    添加新机器人 <rst_source/development/add_robot>
    添加 Action Primitive <rst_source/development/add_primitive>
    Memory 管理 <rst_source/development/memory>

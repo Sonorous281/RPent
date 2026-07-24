@@ -159,7 +159,7 @@ Any planner must:
 
 Because every planner sees the same schemas and the same prompts,
 adding a new brain never requires touching the tools or the env
-servers. See :doc:`../development/architecture` for the interface, and
+servers. See :doc:`../development/interfaces` for the interface, and
 :doc:`../development/add_primitive` if you want to expose new tools to
 your custom brain.
 

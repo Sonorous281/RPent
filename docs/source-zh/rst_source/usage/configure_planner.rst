@@ -140,7 +140,7 @@ RPent 的推理大脑，也就是 planner，用一个命令行参数来选：
 4. 遇到 ``finish`` 或达到上限时终止。
 
 因为所有 planner 看到的是同一份 schema 和 prompt，新增一个大脑不用改动工具或
-env server。接口参见 :doc:`../development/architecture`；想给自定义大脑暴露新
+env server。接口参见 :doc:`../development/interfaces`；想给自定义大脑暴露新
 工具，见 :doc:`../development/add_primitive`。
 
 选择 max-tokens 与 max-turns

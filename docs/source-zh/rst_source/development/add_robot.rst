@@ -2,7 +2,8 @@
 ============
 
 本指南说明，把一个新的物理或仿真机器人接入 RPent 的 LLM 在环 runner 时，需要
-写哪些东西。请把 ``robots/libero/`` 当作完整的参考实例。
+写哪些东西。请把 ``robots/libero/`` 当作完整的参考实例。各模块要实现的接口契约，
+可先看 :doc:`interfaces` 总览。
 
 RPent 把一个 env 拆成两个进程。
 

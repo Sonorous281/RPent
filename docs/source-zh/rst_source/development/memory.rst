@@ -1,6 +1,9 @@
 Memory 管理
 ===========
 
+这份 memory 让 agent 把过往运行里「什么管用、什么不管用」沉淀下来、跨任务
+复用——尤其记住哪些 prompt 和判据能让 VLA 稳定工作，从而不必每次从头试错。
+
 LIBERO agent 的全局 memory 位于 ``resources/libero/memory/``：一个
 ``MEMORY.md`` 索引，外加它索引的若干篇单条笔记。这是一份经过审阅的只读
 知识库，在每次运行开始时载入。

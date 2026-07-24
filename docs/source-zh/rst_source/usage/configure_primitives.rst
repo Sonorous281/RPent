@@ -49,21 +49,8 @@ RPent 内置支持两大类 primitive。
 JSON）和 socket（pickle 分帧）两种传输，用 ``--transport {http,socket}`` 选择，
 默认是 ``http``。这么设计的理由参见 :doc:`../development/add_robot`。
 
-复用一个已在运行的 VLA server
------------------------------
-
-每一个 VLA server 都设计成 **可跨 run 复用**。用 ``--vla-endpoint``
-指向已在跑的实例，而不是每次都启动新实例：
-
-.. code-block:: bash
-
-   rpent --env libero --vla-endpoint http://localhost:8000 \
-     --suite libero_object_swap --task 2 --seed 0 --planner api \
-     --model anthropic:claude-opus-4-8
-
-``--vla-endpoint`` 接受 ``[protocol://]host:port`` 格式，其中 protocol 可以是
-``http`` 或 ``socket``，默认 ``http``。复用已有 env_server 的 ``--env-endpoint``
-也遵循同样的规则。
+独立服务、远程 endpoint 与跨 run 模型复用参见
+:doc:`advanced_deployment`。
 
 新增全新的 primitive 家族
 -------------------------

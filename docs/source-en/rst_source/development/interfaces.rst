@@ -24,6 +24,21 @@ There is **no central list** of envs — dropping a package under
 ``robots/`` is enough. ``get_env_spec`` returns the env identity and its
 prompt bundle; ``get_toolkit`` builds the toolkit the planner drives.
 
+Beyond ``name`` and ``prompts``, the returned ``EnvSpec`` also carries three
+runner hooks that keep ``rpent/cli/main.py`` env-agnostic:
+
+- ``add_cli_args(parser, use_dashboard) -> None`` — register the env's flags
+  on the shared parser (``use_dashboard`` keeps otherwise-required flags
+  optional so the dashboard can fill them).
+- ``parse_config(args) -> RunConfig`` — validate the final ``args`` and
+  return the derived per-run identifiers (``recipe_tag`` / ``output_dir`` /
+  ``prompt_vars`` / ``dashboard_state`` / ``task_desc``).
+- ``init_runtime(args, output_dir) -> (daemons, primitives_kwargs)`` — spawn
+  the env / VLA subprocesses (or attach via ``--env-endpoint`` /
+  ``--vla-endpoint``) and return the toolkit inputs.
+
+See :doc:`add_robot` (§4 and §5) for the step-by-step version.
+
 Planner interface
 -----------------
 

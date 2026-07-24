@@ -12,7 +12,7 @@ via Memory-Guided Agents*
 
 当前的视觉—语言—动作（Vision-Language-Action，VLA）模型在标准机器人
 基准上表现出色，但当任务指令、目标绑定或空间布局发生变化时，性能可能明显
-下降。π\ :sub:`RLinf` 在标准 LIBERO 上的成功率为 95.3%，面对 LIBERO-Pro
+下降。π\ :sub:`RLinf` 在标准 LIBERO 上的成功率为 95.3%，面对 LIBERO-PRO
 扰动时则降至 50.0%。许多失败并不是因为 VLA 不会抓取或放置，而是因为它在
 错误的目标、不合适的状态或长时序任务的错误阶段，执行了局部上看似合理的
 动作。
@@ -24,7 +24,7 @@ Harness VLA 将问题的重点从“如何训练更大的 VLA”转向“应该�
 并在失败后重新组织后续操作；整个过程中，VLA 权重始终保持冻结。
 
 Harness VLA 是 RPent 的首篇论文。在部署阶段不更新 VLA、也不扩展
-Action Primitive library 的条件下，它在 LIBERO-Pro、RoboCasa365 和 RoboTwin C2R
+Action Primitive library 的条件下，它在 LIBERO-PRO、RoboCasa365 和 RoboTwin C2R
 上分别取得 **82.4%**、**55.4%** 和 **58.4%** 的成功率。
 
 .. figure:: https://github.com/RLinf/misc/raw/main/pic/harnessvla_scheme.png
@@ -79,7 +79,7 @@ RoboTwin C2R 双臂操作。代表性成功率如下。
    * - LIBERO
      - 标准任务套件
      - Harness VLA：**96.0%**；π\ :sub:`RLinf`：95.3%
-   * - LIBERO-Pro
+   * - LIBERO-PRO
      - 扰动后的桌面操作
      - Harness VLA：**82.4%**；π\ :sub:`RLinf`：50.0%；RATS：43.8%；Cap-X：18.2%
    * - RoboCasa365
@@ -90,7 +90,7 @@ RoboTwin C2R 双臂操作。代表性成功率如下。
      - Harness VLA：**58.4%**；LingBot-VLA：50.4%
 
 Harness VLA 在标准 LIBERO 上取得 96.0% 的成功率，与 π\ :sub:`RLinf` 的
-95.3% 相当；在更具挑战性的 LIBERO-Pro 上，Harness VLA 达到 82.4%，超过
+95.3% 相当；在更具挑战性的 LIBERO-PRO 上，Harness VLA 达到 82.4%，超过
 π\ :sub:`RLinf` 的 50.0%、RATS 的 43.8% 和 Cap-X 的 18.2%。在 RoboCasa365
 上，Harness VLA 将任务加权总体成功率从 RLDX-1 的 30.0% 提升至 55.4%。
 在 RoboTwin C2R 上，Harness VLA 达到 58.4%，超过 LingBot-VLA 的 50.4%。

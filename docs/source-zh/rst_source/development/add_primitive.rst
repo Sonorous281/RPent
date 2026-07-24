@@ -120,8 +120,9 @@ RPent 里的 *action primitive*，就是把一次工具调用落地成环境可�
               dashboard=dashboard,
           )
 
-   ``rpent/cli/main.py`` 会传入 ``{"env": MyRobotEnvClient(...),
-   "model": MyModelClient(...)}``。
+   然后 env 的 ``_init_runtime`` 会构造 ``primitives_kwargs`` 为
+   ``{"env": MyRobotEnvClient(...), "model": MyModelClient(...)}``, 由
+   toolkit 构造器转发给 primitive driver。
 
 跨 run 复用同一个 vla_server
 ----------------------------

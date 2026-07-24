@@ -98,13 +98,20 @@ agent runtime，工具和 prompt 都不用动。内置三种：自研 agent loop
 Runner
 ------
 
-``rpent/cli/main.py`` 是整场运行的编排者，负责把三个进程拉起来、接上线，
-再交给推理循环。它先拉起 env_server 和 vla_server 两个子进程，等它们
-就绪后，为所选环境构造 toolkit，并按参数选定的 planner 构造决策大脑，最后跑起
-工具调用循环，把结果落盘。日常会用到的命令行参数在 :doc:`../quickstart` 里介绍。
+``rpent/cli/main.py`` 是整场运行的编排者，而且刻意做到与环境无关：它不 import
+任何 env-specific 的类或脚本。它先通过 ``get_env_spec(--env)`` 找到所选环境，
+让该环境注册自己的 CLI flag，再借助环境的 ``EnvSpec`` 钩子驱动整个流程 ——
+``parse_config`` 派生 per-run 标识，``init_runtime`` 拉起 ``env_server`` /
+``vla_server``（或通过 ``--vla-endpoint`` 连到已在跑的实例）并返回 toolkit 输入。
+随后 main.py 构造 toolkit 和 ``--planner`` 后端，跑起工具调用循环，结束时把
+transcript 和 ``episode.mp4`` 落盘。日常会用到的命令行参数在
+:doc:`../quickstart` 里介绍；env 侧钩子的细节见 :doc:`add_robot`。
 
 Runner 有意保持轻薄：跟环境有关的东西都在 ``robots/<env>/`` 下，跟大脑有关的
 都在 ``rpent/planner/`` 下。
+
+Runner 依赖的 env 注册表、planner、toolkit 和传输层接口都收拢在
+:doc:`interfaces`。
 
 Dashboard（可选）
 -----------------

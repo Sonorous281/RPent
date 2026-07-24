@@ -10,16 +10,38 @@ MuJoCo 和 robosuite 的桌面操作基准。它包含四个套件（``libero_ob
 VLA 配置
 --------
 
-Pi0.5 只需要一件事：磁盘上的 checkpoint。通过 ``PI05_CHECKPOINT_PATH``
-指向它：
+下载推荐的 SFT checkpoint
+`RLinf-Pi05-LIBERO-130-fullshot-SFT
+<https://huggingface.co/RLinf/RLinf-Pi05-LIBERO-130-fullshot-SFT>`_，
+再通过 ``PI05_CHECKPOINT_PATH`` 指向它：
 
 .. code-block:: bash
 
+   hf download RLinf/RLinf-Pi05-LIBERO-130-fullshot-SFT \
+     --local-dir /path/to/rlinf-pi05-libero-130-fullshot-sft
+
    export PI05_CHECKPOINT_PATH=/path/to/rlinf-pi05-libero-130-fullshot-sft
 
-推荐的 SFT checkpoint 可以从 HuggingFace 下载：
-`RLinf-Pi05-LIBERO-130-fullshot-SFT
-<https://huggingface.co/RLinf/RLinf-Pi05-LIBERO-130-fullshot-SFT>`_。
+SAM3 配置
+---------
+
+每次 LIBERO 运行都默认启用 SAM 3.0 分割。可以用以下任一方式下载
+``sam3.pt``，再通过 ``SAM3_CHECKPOINT_PATH`` 指定本地 checkpoint：
+
+.. code-block:: bash
+
+   # Hugging Face（需要先在模型页面申请访问权限）
+   hf auth login
+   hf download facebook/sam3 sam3.pt --local-dir /path/to/sam3
+
+   # ModelScope（与上面的 Hugging Face 命令二选一）
+   modelscope download --model facebook/sam3 sam3.pt --local_dir /path/to/sam3
+
+   export SAM3_CHECKPOINT_PATH=/path/to/sam3/sam3.pt
+
+SAM 3.0 checkpoint 可以从以下页面下载：
+`Hugging Face: facebook/sam3 <https://huggingface.co/facebook/sam3>`_、
+`ModelScope: facebook/sam3 <https://modelscope.cn/models/facebook/sam3>`_。
 
 任务选择
 --------
@@ -81,6 +103,9 @@ Pi0.5 只需要一件事：磁盘上的 checkpoint。通过 ``PI05_CHECKPOINT_PA
   分帧的 socket。
 - **vla_server**，也就是 ``robots/libero/vla_server.py``，持有 Pi0.5 权重，
   通过同一套 RPC 传输（HTTP 或 socket）暴露 ``predict``。
+- **sam3_server**，也就是 ``robots/libero/sam3_server.py``，持有 SAM 3.0，
+  通过同一套 RPC 传输（HTTP 或 socket）支持文本或单个正点分割，只返回 top-1
+  压缩 PNG mask。
 - **Toolkit**，也就是 ``robots/libero/toolkit.py``，定义 LLM 能调的工具，比如
   ``pi0_pick``（交给 Pi0.5）、``move_to``、``rotate_wrist``、``back_project``、
   ``view_driver_state``、``finish`` 等。
@@ -107,14 +132,16 @@ LIBERO toolkit 默认暴露这些工具：
   env step，比如搬运途中收紧抓握。
 - ``back_project(row, col)`` 把图像像素（``row`` 0 是顶部，``col`` 0 是左侧）
   反投影到世界坐标系下的 3D 点。
-- ``segment(prompt)`` 是可选的分割辅助工具，在已有的图像 artifact 上定位物体，
-  没配置分割服务时会回退到人工定位。
+- ``segment(prompt=..., point=...)`` 用 SAM3 做分割：文本提示与单个
+  ``[row, col]`` 正点二选一，把 top-1 mask 反投影得到 ``world_xyz``。mask 只在
+  服务端与客户端之间使用，planner 只收到摘要和 artifact 路径。
 - ``view_driver_state()`` 强制刷新一次状态 dump，包括图像、深度、camera meta 和
   ``states.json``。
 - ``view_camera_meta(camera)`` 读取相机的标定元数据（``agentview`` 或 ``wrist``），
   用于定位。
 - ``finish(status, summary)`` 结束当前 episode。``status`` 取 ``success``、
   ``failure`` 或 ``stuck``，``summary`` 是一段简短的自然语言总结，两者都必填。
+
 
 每个工具跑完后都会重新渲染世界，所以下一轮 agent 上下文反映的是
 动作后的状态。

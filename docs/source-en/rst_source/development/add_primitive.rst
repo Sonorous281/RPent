@@ -134,8 +134,9 @@ model runs in its own process. Pattern:
               dashboard=dashboard,
           )
 
-   And ``rpent/cli/main.py`` will pass in ``{"env": MyRobotEnvClient(...),
-   "model": MyModelClient(...)}``.
+   And the env's ``_init_runtime`` will build ``primitives_kwargs`` as
+   ``{"env": MyRobotEnvClient(...), "model": MyModelClient(...)}`` for
+   the toolkit constructor to forward to the primitive driver.
 
 Reuse an existing vla_server across runs
 ----------------------------------------

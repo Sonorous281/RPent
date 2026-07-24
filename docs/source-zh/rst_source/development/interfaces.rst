@@ -21,6 +21,20 @@
 新增环境不用在别处登记，把包放进 ``robots/`` 下就会被发现。``get_env_spec`` 返回环境的
 身份和 prompt bundle，``get_toolkit`` 构造 planner 驱动的 toolkit。
 
+除了 ``name`` 和 ``prompts``，返回的 ``EnvSpec`` 还带三个 runner 钩子，让
+``rpent/cli/main.py`` 保持与环境无关：
+
+- ``add_cli_args(parser, use_dashboard) -> None`` —— 把环境的 flag 注册到共享
+  parser（``use_dashboard`` 控制原本必填的 flag 是否保持可选，好让 dashboard 填）。
+- ``parse_config(args) -> RunConfig`` —— 校验最终 ``args``，返回派生的 per-run
+  标识（``recipe_tag`` / ``output_dir`` / ``prompt_vars`` / ``dashboard_state`` /
+  ``task_desc``）。
+- ``init_runtime(args, output_dir) -> (daemons, primitives_kwargs)`` —— 拉起
+  env / VLA 子进程（或通过 ``--env-endpoint`` / ``--vla-endpoint`` 连到已在跑的
+  实例），返回 toolkit 输入。
+
+手把手的版本见 :doc:`add_robot` 的 §4 和 §5。
+
 Planner 接口
 ------------
 

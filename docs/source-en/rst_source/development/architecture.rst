@@ -122,18 +122,24 @@ The code that implements the framework is split cleanly by concern:
 The runner
 ----------
 
-``rpent/cli/main.py`` is the choreographer: it brings the three
-processes up, wires them together, and hands off to the reasoning loop.
-It first spawns the ``env_server`` and ``vla_server`` subprocesses and
-waits for them to be ready, then builds the toolkit for the chosen env,
-constructs the planner selected by ``--planner``, and runs the
-tool-calling loop, writing the transcript and ``episode.mp4`` on exit.
-The CLI flags you'll use day-to-day are documented in
-:doc:`../quickstart`.
+``rpent/cli/main.py`` is the choreographer, and it is deliberately
+env-agnostic: it imports no env-specific class or script. It resolves the
+chosen env via ``get_env_spec(--env)``, lets that env register its own CLI
+flags, and then drives the run through the env's ``EnvSpec`` hooks —
+``parse_config`` derives the per-run identifiers and ``init_runtime`` spawns
+the ``env_server`` / ``vla_server`` (or attaches to a running one via
+``--vla-endpoint``) and returns the toolkit inputs. main.py then builds the
+toolkit and the ``--planner`` backend, runs the tool-calling loop, and writes
+the transcript and ``episode.mp4`` on exit. The CLI flags you'll use
+day-to-day are documented in :doc:`../quickstart`; the env-side hooks are
+detailed in :doc:`add_robot`.
 
 The runner is intentionally thin: everything env-specific lives under
 ``robots/<env>/``, and everything brain-specific lives under
 ``rpent/planner/``.
+
+The env registry, planner, toolkit, and transport interfaces the runner
+relies on are collected in :doc:`interfaces`.
 
 Dashboard (optional)
 --------------------

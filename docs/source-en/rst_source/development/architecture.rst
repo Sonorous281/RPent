@@ -40,50 +40,47 @@ physical world*, where intelligence is not only deployed, but
 continuously built, expanded, and evolved.
 
 The sections below walk through how this architecture is implemented:
-what the three processes own, how they communicate, and how the pieces
-slot together under ``rpent/`` and ``robots/``.
+what each part does at runtime, how they communicate, and how the code
+is organized under ``rpent/`` and ``robots/``.
 
 Key features
 ------------
 
-*(These are the framework-level guarantees the architecture is designed
-around; the sections below then show how each is implemented.)*
+This section highlights the design choices that set RPent apart from
+other embodied-agent frameworks.
 
-- **LLM-in-the-loop control.** The LLM is not fine-tuned — it drives
-  the robot purely by calling tools (``pi0_pick``, ``move_to``,
-  ``rotate_wrist``, ``back_project``, ``finish``, etc.). Each tool
-  result is fed back as multimodal context (text + rendered images),
-  so the model reasons over what it actually observes.
-- **Three-process architecture.** The **agent process** (LLM planner
-  + toolkit, no GPU dependency), the **env_server** (simulator + EGL
-  rendering), and the **vla_server** (GPU policy weights) are
-  separate processes wired by lightweight RPC. Either heavyweight
-  process can be restarted, moved to another GPU, or pointed at a
-  remote host independently.
-- **Pluggable reasoning brains (planners).** Swap the decision brain
-  with one flag — ``--planner {api, claude_code, codex}`` —
-  without touching the tools or prompts:
+**LLM as the planner.** This is the most fundamental difference from most
+embodied agents: they train an end-to-end policy model that outputs
+actions directly, whereas RPent has a general LLM act as the planner —
+reasoning and calling tools to drive the robot, with VLAs and scripted
+actions as the low-level capabilities it invokes. Each tool call returns
+text plus images, fed back so the model decides its next step from what
+it actually sees. This taps the LLM's general reasoning and on-the-fly
+recovery without retraining a model for each new task.
 
-  - ``api`` — a provider-agnostic tool-calling loop built on
-    `pydantic-ai <https://ai.pydantic.dev/>`_ (Anthropic / OpenAI /
-    OpenAI-compatible), with prompt caching and history-image
-    pruning.
-  - ``claude_code`` — the `Claude Agent SDK
-    <https://docs.claude.com/en/api/agent-sdk/overview>`_, exposing
-    the toolkit as an in-process MCP server.
-  - ``codex`` — the OpenAI Codex SDK, bridged to the toolkit over an
-    HTTP MCP server.
-- **One contract, many environments.** The env/vla process split is a
-  universal contract: LIBERO (Pi0.5 over HTTP) is the shipped reference;
-  RoboCasa (RLDX-1 over socket-RPC) is in progress. Adding a new
-  environment means implementing the same interface — only the wire
-  codec changes to fit each env's observation shape.
-- **Live dashboard.** An optional ``--dashboard`` starts a local
-  FastAPI monitor that streams the agent's reasoning, real-time
-  camera / Pi0 views, and an action timeline — with a
-  **bilingual UI** (``--dashboard-language {en, zh-cn}``).
-- **Add an environment by dropping a package on disk.** No central
-  registry to edit — see :doc:`add_robot`.
+The planner itself is swappable, with three built-in backends:
+
+- **Built-in agent loop** — RPent's own tool-calling loop,
+  provider-agnostic.
+- **Claude Agent SDK** — reuses Anthropic's official agent runtime.
+- **Codex SDK** — reuses OpenAI Codex's agent runtime.
+
+See :doc:`../usage/configure_planner` for choosing and configuring them.
+
+**Environment decoupling.** The simulator or real robot runs as a
+standalone ``env_server`` that talks to the agent over lightweight RPC;
+the agent side imports no simulator and isn't tied to any specific
+environment. Swapping environments just means implementing the same
+``EnvClient`` interface — an env can be restarted on its own, moved to
+another machine, or switched from simulation straight to hardware,
+without touching the planner or tools. The GPU-side policy
+(``vla_server``) is a separate process too. Adding an environment
+doesn't even need registration code: drop a package under ``robots/``
+and the framework discovers it (see :doc:`add_robot`).
+
+**Live monitoring.** An optional ``--dashboard`` starts a local FastAPI
+monitor streaming the LLM's reasoning, live camera and Pi0 views, and an
+action timeline, with a bilingual UI (``--dashboard-language {en, zh-cn}``).
 
 The agentic loop
 ----------------

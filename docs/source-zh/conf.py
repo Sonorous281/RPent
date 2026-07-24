@@ -72,3 +72,44 @@ html_theme_options = {
         "version_match": version,
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# 去除中文软换行渲染出的多余空格
+#
+# reStructuredText 会把源码里的换行渲染成一个空格。英文里没问题（单词本就
+# 以空格分隔），但两个汉字被换行拆开时会多出一个空格。下面的钩子在 doctree
+# 阶段删掉正文里相邻汉字之间的空格；代码块、行内 ``code``、raw HTML 以及
+# 中英文之间的空格都不受影响。
+# ---------------------------------------------------------------------------
+import re as _re
+
+from docutils import nodes as _nodes
+
+_CJK = r"一-鿿㐀-䶿　-〿＀-￯"
+_CJK_SPACE_RE = _re.compile(rf"([{_CJK}])[ \t]+([{_CJK}])")
+
+
+def _strip_cjk_spaces(app, doctree):
+    skip = (
+        _nodes.literal,
+        _nodes.literal_block,
+        _nodes.FixedTextElement,
+        _nodes.raw,
+        _nodes.comment,
+        _nodes.math,
+        _nodes.math_block,
+    )
+    for node in list(doctree.findall(_nodes.Text)):
+        if isinstance(node.parent, skip):
+            continue
+        text = str(node)
+        new = _CJK_SPACE_RE.sub(r"\1\2", text)
+        new = _CJK_SPACE_RE.sub(r"\1\2", new)  # 再跑一次，处理连续重叠
+        if new != text:
+            node.parent.replace(node, _nodes.Text(new))
+
+
+def setup(app):
+    app.connect("doctree-read", _strip_cjk_spaces)
+    return {"parallel_read_safe": True, "parallel_write_safe": True}

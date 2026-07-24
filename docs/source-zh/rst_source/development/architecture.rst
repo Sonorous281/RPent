@@ -81,8 +81,9 @@ GPU 上的策略权重。三者用轻量 RPC 串在一起，任何一个重量�
 4. 环境渲染出新的观测和相机画面。
 5. 结果组装成文本加图像的内容块，喂回给 LLM 进入下一轮。
 
-当 LLM 调用 ``finish``（结果为 ``success``、``failure`` 或 ``stuck``），或者
-触达 ``--max-turns`` / ``--max-episode-steps`` 上限时，循环结束。
+循环有两种收尾方式：LLM 调用 ``finish`` 主动结束，把状态标为 ``success``、
+``failure`` 或 ``stuck``；或者跑满 ``--max-turns``、``--max-episode-steps``
+设定的上限。
 
 仓库布局
 --------

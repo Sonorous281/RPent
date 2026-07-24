@@ -87,7 +87,7 @@ import re as _re
 from docutils import nodes as _nodes
 
 _CJK = r"一-鿿㐀-䶿　-〿＀-￯"
-_CJK_SPACE_RE = _re.compile(rf"([{_CJK}])[ \t]+([{_CJK}])")
+_CJK_SPACE_RE = _re.compile(rf"([{_CJK}])\s+([{_CJK}])")
 
 
 def _strip_cjk_spaces(app, doctree):

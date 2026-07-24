@@ -2,10 +2,10 @@ Memory 管理
 ===========
 
 这份 memory 让 agent 把过往运行里「什么管用、什么不管用」沉淀下来、跨任务
-复用——尤其记住哪些 prompt 和判据能让 VLA 稳定工作，从而不必每次从头试错。
+复用——尤其记住什么样的 prompt、在什么条件下能让 VLA 稳定工作，从而不必每次从头试错。
 
-LIBERO agent 的全局 memory 位于 ``resources/libero/memory/``：一个
-``MEMORY.md`` 索引，外加它索引的若干篇单条笔记。这是一份经过审阅的只读
+RPent 在 LIBERO 上的全局 memory 位于 ``resources/libero/memory/``：一个
+``MEMORY.md`` 作总索引，底下挂着若干条单独的笔记。这是一份经过审阅的只读
 知识库，在每次运行开始时载入。
 
 托管方式
@@ -22,6 +22,6 @@ LIBERO agent 的全局 memory 位于 ``resources/libero/memory/``：一个
 更新 memory
 -----------
 
-发布 memory 是一项受控操作，由拥有 ``RLinf`` 组织写权限的维护者执行，仓库
+发布 memory 由维护者统一把关：只有拥有 ``RLinf`` 组织写权限的人能发布，仓库
 本身不提供自助上传入口。如果你有效果更好的 memory，可以开一个 issue 附上
 内容来贡献，由维护者审阅后发布。

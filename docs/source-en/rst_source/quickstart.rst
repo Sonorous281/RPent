@@ -42,8 +42,8 @@ See :doc:`usage/configure_planner` to configure other planners
 
 Add ``--dashboard`` to open a browser monitor for the run. It boots a
 launcher screen where you pick the config, then streams the agent's
-reasoning, live camera and Pi0 views, an action timeline, and clip
-replays. Use ``--dashboard-language zh-cn`` for the Chinese UI.
+reasoning, live camera and Pi0 views, and an action timeline. Use
+``--dashboard-language zh-cn`` for the Chinese UI.
 
 .. code-block:: bash
 

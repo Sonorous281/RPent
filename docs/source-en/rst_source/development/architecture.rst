@@ -80,7 +80,7 @@ around; the sections below then show how each is implemented.)*
   codec changes to fit each env's observation shape.
 - **Live dashboard.** An optional ``--dashboard`` starts a local
   FastAPI monitor that streams the agent's reasoning, real-time
-  camera / Pi0 views, an action timeline, and clip replays — with a
+  camera / Pi0 views, and an action timeline — with a
   **bilingual UI** (``--dashboard-language {en, zh-cn}``).
 - **Add an environment by dropping a package on disk.** No central
   registry to edit — see :doc:`add_robot`.
@@ -152,9 +152,8 @@ Dashboard (optional)
 port), boots a launcher page for picking config, and then streams:
 
 - The agent's reasoning tokens (SSE).
-- Live camera / Pi0.5 overlay frames.
-- An action timeline.
-- On-completion clip replays.
+- Live camera / Pi0.5 views.
+- An action timeline; click any action to replay that step.
 
 .. note::
 

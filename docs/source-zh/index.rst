@@ -104,4 +104,4 @@
    :hidden:
    :caption: 论文
 
-   Harness VLA: Steering Frozen VLAs into Reliable Manipulation Primitives via Memory-Guided Agents <rst_source/awesome_works/harnessvla>
+   Harness VLA <rst_source/awesome_works/harnessvla>

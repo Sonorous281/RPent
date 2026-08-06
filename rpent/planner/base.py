@@ -1,3 +1,5 @@
+# Copyright 2026 The RPent Authors.
+
 """Shared protocol for high-level reasoning backends."""
 
 from __future__ import annotations
@@ -103,11 +105,15 @@ def build_planner(
     env_name: str,
     base_url: str | None = None,
     model: str | None = None,
+    reasoning_effort: str | None = None,
     max_tokens: int = 8192,
     planner_timeout_s: int | None = None,
     claude_code_max_budget_usd: float | None = None,
     dashboard: Any = None,
     no_images: bool = False,
+    enforce_action_guard: bool = False,
+    planner_guard_warn_after: int = 3,
+    planner_guard_abort_after: int = 5,
 ):
     """Build a planner for the given backend, resolving credentials from env vars."""
     # Imports are deferred to avoid a circular import: api_loop / claude_code /
@@ -188,6 +194,10 @@ def build_planner(
             output_dir=output_dir,
             repo_root=get_repo_root(),
             model=model,
+            reasoning_effort=reasoning_effort,
+            enforce_action_guard=enforce_action_guard,
+            action_guard_warn_after=planner_guard_warn_after,
+            action_guard_abort_after=planner_guard_abort_after,
             timeout_s=cx_timeout_s,
             extra_dirs=[str(get_memory_dir(env_name))],
             output_path=Path(output_dir) / f"codex_{recipe_tag}.txt",

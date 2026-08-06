@@ -1,3 +1,5 @@
+# Copyright 2026 The RPent Authors.
+
 """Static env-extension descriptor.
 
 Lives in :mod:`rpent.envs` alongside
@@ -48,4 +50,4 @@ class EnvSpec:
         [argparse.Namespace, Path],
         tuple[list["ProcessDaemon"], dict[str, Any]],
     ]
-
+    planner_progress_guard: bool = False

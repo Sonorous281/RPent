@@ -406,14 +406,20 @@ def main() -> int:
         )
     if run_telemetry:
         stats = {**stats, "run_telemetry": run_telemetry}
-    if run_telemetry.get("hard_failure"):
+    if run_telemetry.get("failure_class") in {
+        "planner_failure",
+        "control_path_failure",
+        "infra_failure",
+    }:
         original_finish = finish_result
         control_path_violation = int(
             run_telemetry.get("control_path_violation", 0)
         )
         terminal_protocol_violation = int(
-            run_telemetry.get("terminal_protocol_violation", 0)
+            run_telemetry.get("failure_reason")
+            == "planner_returned_without_finish"
         )
+        failure_reason = run_telemetry.get("failure_reason", "unknown_protocol_gate")
         if control_path_violation:
             failure_summary = (
                 "RoboTwin Planner used a forbidden environment control path."
@@ -432,15 +438,10 @@ def main() -> int:
             "summary": failure_summary,
             "control_path_violation": control_path_violation,
             "terminal_protocol_violation": terminal_protocol_violation,
-            "hard_failure_reasons": run_telemetry.get(
-                "hard_failure_reasons",
-                [],
-            ),
+            "hard_failure_reasons": [failure_reason],
             "original_finish": original_finish,
         }
-        violation_error = "RoboTwin hard failure: " + ", ".join(
-            run_telemetry.get("hard_failure_reasons", ["unknown_protocol_gate"])
-        )
+        violation_error = f"RoboTwin hard failure: {failure_reason}"
         agent_error = (
             f"{agent_error}; {violation_error}" if agent_error else violation_error
         )

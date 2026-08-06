@@ -782,11 +782,10 @@ def test_robotwin_finalize_run_marks_violation_as_hard_failure(tmp_path):
         },
     )
 
-    assert telemetry["hard_failure"] is True
     assert telemetry["control_path_violation"] == 1
     assert telemetry["failure_class"] == "control_path_failure"
     assert telemetry["mutation_summary"]["unknown_mutation_path"] == 0
-    assert Path(telemetry["path"]).is_file()
+    assert (tmp_path / "robotwin_telemetry.json").is_file()
 
 
 def test_robotwin_finalize_run_marks_planner_no_action_loop_as_hard_failure(
@@ -810,8 +809,6 @@ def test_robotwin_finalize_run_marks_planner_no_action_loop_as_hard_failure(
     assert telemetry["failure_class"] == "planner_failure"
     assert telemetry["failure_reason"] == "planner_no_action_loop"
     assert telemetry["finish_origin"] == "guard_abort"
-    assert telemetry["hard_failure_reasons"] == ["planner_no_action_loop"]
-    assert telemetry["hard_failure"] is True
 
 
 def test_robotwin_finalize_run_correlates_planner_tool_events(tmp_path):
@@ -868,12 +865,12 @@ def test_robotwin_finalize_run_correlates_planner_tool_events(tmp_path):
     assert run_record["tool_event_correlation_errors"] == []
     assert run_record["termination"] == "planner_returned_without_finish"
     assert run_record["native_termination"] is None
-    assert telemetry["terminal_protocol_violation"] == 1
-    assert telemetry["hard_failure_reasons"] == [
+    assert run_record["terminal_protocol_violation"] == 1
+    assert run_record["hard_failure_reasons"] == [
         "planner_returned_without_finish"
     ]
     assert telemetry["finish_origin"] == "no_finish"
-    assert telemetry["hard_failure"] is True
+    assert run_record["hard_failure"] is True
 
 
 def _telemetry_only_toolkit(tmp_path):
@@ -1076,7 +1073,7 @@ def test_initial_reset_mutation_is_not_an_unknown_control_path(tmp_path):
 
     assert telemetry["mutation_summary"]["unknown_mutation_path"] == 0
     assert telemetry["control_path_violation"] == 0
-    assert telemetry["hard_failure"] is False
+    assert telemetry["failure_class"] == "task_failure"
 
 
 def test_runtime_mutation_without_toolkit_call_is_a_hard_failure(tmp_path):
@@ -1096,4 +1093,4 @@ def test_runtime_mutation_without_toolkit_call_is_a_hard_failure(tmp_path):
 
     assert telemetry["mutation_summary"]["unknown_mutation_path"] == 1
     assert telemetry["control_path_violation"] == 1
-    assert telemetry["hard_failure"] is True
+    assert telemetry["failure_class"] == "control_path_failure"

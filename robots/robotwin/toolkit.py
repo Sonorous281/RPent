@@ -530,7 +530,6 @@ class RoboTwinToolkit(Toolkit):
             failure_class = None
             failure_reason = None
         summary = {
-            "episode_id": self._episode_id,
             "native_success": native_success,
             "accepted_episode_success": bool(
                 native_success
@@ -549,9 +548,6 @@ class RoboTwinToolkit(Toolkit):
                 "observed": self._mutation_observed_count,
                 "unknown_mutation_path": len(unknown_mutations),
             },
-            "terminal_protocol_violation": terminal_protocol_violation,
-            "hard_failure_reasons": hard_failure_reasons,
-            "hard_failure": bool(hard_failure_reasons),
         }
         path = self._output_dir / "robotwin_telemetry.json"
         if getattr(self, "_debug_telemetry", False):
@@ -560,7 +556,11 @@ class RoboTwinToolkit(Toolkit):
                 {
                     "type": "run",
                     **summary,
+                    "episode_id": self._episode_id,
                     "timings": timings,
+                    "terminal_protocol_violation": terminal_protocol_violation,
+                    "hard_failure_reasons": hard_failure_reasons,
+                    "hard_failure": bool(hard_failure_reasons),
                     "planner": {
                         "turns": int(planner_stats.get("turns_used", 0)),
                         "planner_no_action_loop": planner_no_action_loop,
@@ -591,7 +591,6 @@ class RoboTwinToolkit(Toolkit):
             )
             summary["debug_path"] = str(debug_path)
         path.write_text(json.dumps(summary, indent=2, default=tools._json_default))
-        summary["path"] = str(path)
         return summary
 
     def write_recipe(self, recipe_tag: str) -> str:

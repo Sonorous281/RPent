@@ -159,12 +159,17 @@ class RoboTwinToolkit(Toolkit):
         signal is never appended to a tool result, prompt, or tool schema.
         """
         tool_name = str(result.get("tool", "")).lower() if isinstance(result, dict) else ""
+        payload = result.get("result") if isinstance(result, dict) else result
         if tool_name == "finish":
+            terminal_succeeded = any(
+                candidate.get("_finish") is True
+                for candidate in _iter_json_objects(payload)
+            )
             return {
                 "terminal_tool": True,
+                "terminal_succeeded": terminal_succeeded,
                 "progress_token": {"tool": "finish"},
             }
-        payload = result.get("result") if isinstance(result, dict) else result
         progress_token: dict[str, Any] = {"tool": tool_name}
         for candidate in _iter_json_objects(payload):
             for key in (
@@ -475,6 +480,10 @@ class RoboTwinToolkit(Toolkit):
         native_success_without_finish = int(
             planner_stats.get("native_success_without_finish", 0)
         )
+        terminal_tool_failure = int(
+            planner_stats.get("terminal_tool_failure", 0)
+        )
+        terminal_latched = bool(planner_stats.get("terminal_latched", False))
         hard_failure_reasons: list[str] = []
         if audit["control_path_violation"] > 0:
             hard_failure_reasons.append("control_path_violation")
@@ -495,25 +504,42 @@ class RoboTwinToolkit(Toolkit):
             )
         finish_called = finish_origin == "planner_finish"
         finish_count = getattr(self, "_planner_finish_count", 0)
+        post_finish_guard_continued = bool(
+            finish_called and (planner_no_action_loop or not terminal_latched)
+        )
         if finish_count > 1:
             hard_failure_reasons.append("duplicate_finish")
+        if terminal_tool_failure:
+            hard_failure_reasons.append("planner_terminal_tool_failed")
+        if post_finish_guard_continued:
+            hard_failure_reasons.append("post_finish_guard_continued")
         if (
-            native_success_without_finish
+            terminal_tool_failure
+            or post_finish_guard_continued
+            or native_success_without_finish
             or terminal_protocol_violation
             or planner_no_action_loop
             or finish_count > 1
         ):
             failure_class = "planner_failure"
             failure_reason = (
-                "native_success_without_finish"
-                if native_success_without_finish
+                "planner_terminal_tool_failed"
+                if terminal_tool_failure
                 else (
-                    "planner_returned_without_finish"
-                    if terminal_protocol_violation
+                    "post_finish_guard_continued"
+                    if post_finish_guard_continued
                     else (
-                        "planner_no_action_loop"
-                        if planner_no_action_loop
-                        else "duplicate_finish"
+                        "native_success_without_finish"
+                        if native_success_without_finish
+                        else (
+                            "planner_returned_without_finish"
+                            if terminal_protocol_violation
+                            else (
+                                "planner_no_action_loop"
+                                if planner_no_action_loop
+                                else "duplicate_finish"
+                            )
+                        )
                     )
                 )
             )
@@ -535,11 +561,13 @@ class RoboTwinToolkit(Toolkit):
                 native_success
                 and finish_called
                 and finish_count == 1
+                and terminal_latched
                 and state_trustworthy
                 and not hard_failure_reasons
             ),
             "finish_called": finish_called,
             "finish_origin": finish_origin,
+            "terminal_latched": terminal_latched,
             "state_trustworthy": state_trustworthy,
             "failure_class": failure_class,
             "failure_reason": failure_reason,

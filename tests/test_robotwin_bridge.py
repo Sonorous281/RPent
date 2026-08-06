@@ -949,7 +949,7 @@ def test_robotwin_native_success_with_real_finish_is_accepted(tmp_path):
 
     toolkit.execute_tool("finish", {"status": "success", "summary": "done"})
     telemetry = toolkit.finalize_run(
-        planner_stats={},
+        planner_stats={"terminal_latched": True},
         lifecycle={"planner_outcome": "planner_finish"},
     )
 
@@ -1013,7 +1013,7 @@ def test_robotwin_duplicate_finish_is_planner_failure(tmp_path):
     for _ in range(2):
         toolkit.execute_tool("finish", {"status": "success", "summary": "done"})
     telemetry = toolkit.finalize_run(
-        planner_stats={},
+        planner_stats={"terminal_latched": True},
         lifecycle={"planner_outcome": "planner_finish"},
     )
 
@@ -1021,6 +1021,60 @@ def test_robotwin_duplicate_finish_is_planner_failure(tmp_path):
     assert telemetry["accepted_episode_success"] is False
     assert telemetry["failure_class"] == "planner_failure"
     assert telemetry["failure_reason"] == "duplicate_finish"
+
+
+def test_robotwin_post_finish_guard_continued_is_distinct_planner_failure(
+    tmp_path,
+):
+    toolkit = _telemetry_only_toolkit(tmp_path)
+    native_finish = {
+        "_finish": True,
+        "status": "success",
+        "success": True,
+        "state_trustworthy": True,
+        "native_status": {
+            "success": True,
+            "state_trustworthy": True,
+        },
+    }
+    toolkit.add_tool(
+        "finish",
+        {"name": "finish", "input_schema": {"type": "object"}},
+        lambda **_: native_finish,
+    )
+
+    toolkit.execute_tool("finish", {"status": "success", "summary": "done"})
+    telemetry = toolkit.finalize_run(
+        planner_stats={
+            "planner_no_action_loop": 1,
+            "terminal_latched": False,
+        },
+        lifecycle={"planner_outcome": "planner_error"},
+    )
+
+    assert telemetry["native_success"] is True
+    assert telemetry["finish_origin"] == "planner_finish"
+    assert telemetry["terminal_latched"] is False
+    assert telemetry["accepted_episode_success"] is False
+    assert telemetry["failure_class"] == "planner_failure"
+    assert telemetry["failure_reason"] == "post_finish_guard_continued"
+
+
+def test_robotwin_terminal_tool_failure_is_explicit_planner_failure(tmp_path):
+    toolkit = _telemetry_only_toolkit(tmp_path)
+
+    telemetry = toolkit.finalize_run(
+        planner_stats={
+            "terminal_tool_failure": 1,
+            "terminal_latched": False,
+        },
+        lifecycle={"planner_outcome": "planner_error"},
+    )
+
+    assert telemetry["accepted_episode_success"] is False
+    assert telemetry["terminal_latched"] is False
+    assert telemetry["failure_class"] == "planner_failure"
+    assert telemetry["failure_reason"] == "planner_terminal_tool_failed"
 
 
 def test_robotwin_rejects_finish_signal_when_tool_did_not_complete(tmp_path):

@@ -54,6 +54,9 @@ NATIVE_SUCCESS_FINISH_WARNING = (
     "Do not inspect another observation, execute another action, or reply with "
     "text only."
 )
+GUARD_ACTIVE = "active"
+GUARD_FINISH_PENDING = "finish_pending"
+GUARD_TERMINATED = "terminated"
 
 # ---------------------------------------------------------------------------
 # Public backend
@@ -348,12 +351,20 @@ class CodexPlanner:
                                         "failed to steer Codex action guard: %s",
                                         error,
                                     )
+                            if recorder.guard_state == GUARD_TERMINATED:
+                                break
                             if recorder.abort_requested:
                                 try:
                                     turn.interrupt()
                                 except Exception:
                                     pass
                                 break
+                        recorder._complete_pending_response()
+                        if recorder.abort_requested:
+                            try:
+                                turn.interrupt()
+                            except Exception:
+                                pass
                     finally:
                         if stop_steer is not None:
                             stop_steer.set()
@@ -435,7 +446,10 @@ class _Recorder:
     duplicate_image_guard_count: int = 0
     native_success_finish_required_count: int = 0
     native_success_without_finish: bool = False
+    terminal_tool_failure: bool = False
     abort_requested: bool = False
+    guard_state: str = GUARD_ACTIVE
+    logical_response_count: int = 0
     _response_item_types: set[str] = field(default_factory=set)
     _response_had_new_rpent_result: bool = False
     _response_had_new_image: bool = False
@@ -446,6 +460,7 @@ class _Recorder:
     _native_success_finish_required: bool = False
     _native_success_detected_in_response: bool = False
     _response_called_finish: bool = False
+    _response_boundary_pending: bool = False
 
     def stats(self) -> dict[str, Any]:
         return {
@@ -469,6 +484,10 @@ class _Recorder:
             "native_success_without_finish": int(
                 self.native_success_without_finish
             ),
+            "terminal_tool_failure": int(self.terminal_tool_failure),
+            "terminal_latched": self.guard_state == GUARD_TERMINATED,
+            "guard_state": self.guard_state,
+            "logical_response_count": self.logical_response_count,
             "planner_no_action_loop": int(self.abort_requested),
             "planner_action_guard": {
                 "enabled": self.enforce_action_guard,
@@ -484,6 +503,9 @@ class _Recorder:
 
         if method in {"thread/started", "turn/started"}:
             return f"[codex-system] {method}\n"
+        if method == "item/started":
+            self._observe_item_started(_get(payload, "item"))
+            return ""
         if method == "item/completed":
             item = _get(payload, "item")
             self._observe_response_item(item)
@@ -492,10 +514,12 @@ class _Recorder:
                 sdk_turn_id=_optional_str(_get(payload, "turn_id")),
             )
         if method == "thread/tokenUsage/updated":
-            self._complete_model_response()
             self._set_usage(_get(payload, "token_usage"))
+            if self._response_item_types:
+                self._response_boundary_pending = True
             return ""
         if method == "turn/completed":
+            self._complete_pending_response()
             return self._render_turn_completed(_get(payload, "turn"))
         if "requestApproval" in method:
             return f"[codex-approval] {method}\n"
@@ -505,14 +529,41 @@ class _Recorder:
 
     def consume_guard_warning(self) -> str | None:
         """Return one pending environment action reminder."""
+        if self.guard_state != GUARD_ACTIVE:
+            self._guard_warning_pending = None
+            return None
         warning = self._guard_warning_pending
         self._guard_warning_pending = None
         return warning
 
+    def _observe_item_started(self, item: Any) -> None:
+        item = _unwrap(item)
+        item_type = str(_get(item, "type", ""))
+        if self._response_boundary_pending and item_type not in {
+            "mcpToolCall",
+            "dynamicToolCall",
+            "commandExecution",
+            "fileChange",
+            "imageView",
+        }:
+            self._complete_pending_response()
+        if item_type not in {"mcpToolCall", "dynamicToolCall"}:
+            return
+        server = str(_get(item, "server", "rpent"))
+        tool_name = strip_mcp_prefix(str(_get(item, "tool", ""))).lower()
+        if (
+            self.enforce_action_guard
+            and self.guard_state == GUARD_ACTIVE
+            and server == "rpent"
+            and tool_name == "finish"
+        ):
+            self.guard_state = GUARD_FINISH_PENDING
+            self._guard_warning_pending = None
+
     def _observe_response_item(self, item: Any) -> None:
         item = _unwrap(item)
         item_type = str(_get(item, "type", ""))
-        if not item_type:
+        if not item_type or item_type == "userMessage":
             return
         self._response_item_types.add(item_type)
         if item_type in {"mcpToolCall", "dynamicToolCall"}:
@@ -539,8 +590,28 @@ class _Recorder:
                 if tool_name == "finish":
                     self._response_called_finish = True
                     self._native_success_finish_required = False
+                    terminal_succeeded = bool(
+                        progress and progress.get("terminal_succeeded") is True
+                    ) or (
+                        str(_get(item, "status", "")) == "completed"
+                        and _contains_finish_marker(_get(item, "result"))
+                    )
+                    if terminal_succeeded:
+                        self.guard_state = GUARD_TERMINATED
+                        self._guard_warning_pending = None
+                        self.abort_requested = False
+                        self.error = None
+                    elif self.guard_state == GUARD_FINISH_PENDING:
+                        self.guard_state = GUARD_ACTIVE
+                        self.terminal_tool_failure = True
+                        self.abort_requested = True
+                        self.error = (
+                            "planner_terminal_tool_failed: finish did not return "
+                            "a successful terminal result"
+                        )
                 if (
                     tool_name != "finish"
+                    and self.guard_state == GUARD_ACTIVE
                     and progress
                     and progress.get("requires_finish") is True
                 ):
@@ -549,6 +620,8 @@ class _Recorder:
                     self._native_success_finish_required = True
                     self._native_success_detected_in_response = True
                     self._queue_guard_warning(NATIVE_SUCCESS_FINISH_WARNING)
+            if self._response_boundary_pending:
+                self._complete_pending_response()
             return
         if not self.enforce_action_guard or item_type != "imageView":
             return
@@ -568,8 +641,18 @@ class _Recorder:
                 "registered environment tool now, or use the terminal tool."
             )
 
+    def _complete_pending_response(self) -> None:
+        if not self._response_boundary_pending:
+            return
+        self._response_boundary_pending = False
+        self._complete_model_response()
+
     def _complete_model_response(self) -> None:
         if not self._response_item_types:
+            return
+        self.logical_response_count += 1
+        if self.guard_state != GUARD_ACTIVE:
+            self._reset_response_state()
             return
         if self.enforce_action_guard and self._native_success_finish_required:
             if self._response_called_finish:
@@ -762,6 +845,12 @@ class _Recorder:
         if name.lower() != "finish":
             return
         data = _jsonable(item)
+        if (
+            not isinstance(data, dict)
+            or data.get("status") != "completed"
+            or not _contains_finish_marker(data.get("result"))
+        ):
+            return
         args = data.get("arguments") if isinstance(data, dict) else None
         if isinstance(args, str):
             try:
@@ -899,6 +988,22 @@ def _extract_text(value: Any) -> str:
         parts = [_extract_text(item) for item in value]
         return "\n".join(part for part in parts if part)
     return ""
+
+
+def _contains_finish_marker(value: Any) -> bool:
+    value = _jsonable(value)
+    if isinstance(value, dict):
+        if value.get("_finish") is True:
+            return True
+        return any(_contains_finish_marker(child) for child in value.values())
+    if isinstance(value, list):
+        return any(_contains_finish_marker(child) for child in value)
+    if isinstance(value, str):
+        try:
+            return _contains_finish_marker(json.loads(value))
+        except (json.JSONDecodeError, TypeError):
+            return False
+    return False
 
 
 def _payload_size(value: Any) -> int:

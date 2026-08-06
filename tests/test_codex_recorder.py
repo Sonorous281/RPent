@@ -140,6 +140,12 @@ def _complete_response(recorder, *items):
             "payload": {"token_usage": {}},
         }
     )
+    recorder.observe(
+        {
+            "method": "item/started",
+            "payload": {"item": {"type": "reasoning", "id": "next-response"}},
+        }
+    )
 
 
 def test_action_guard_is_disabled_by_default():
@@ -260,24 +266,26 @@ def _native_status_tool_item(
     state_trustworthy: bool,
     tool: str = "lingbot_act",
 ):
+    result_payload = {
+        "episode_status": {
+            "success": success,
+            "state_trustworthy": state_trustworthy,
+            "mutation_seq": 1,
+        }
+    }
+    if tool == "finish":
+        result_payload["_finish"] = True
     return {
         "type": "mcpToolCall",
         "server": "rpent",
         "tool": tool,
+        "status": "completed",
         "arguments": {},
         "result": {
             "content": [
                 {
                     "type": "text",
-                    "text": json.dumps(
-                        {
-                            "episode_status": {
-                                "success": success,
-                                "state_trustworthy": state_trustworthy,
-                                "mutation_seq": 1,
-                            }
-                        }
-                    ),
+                    "text": json.dumps(result_payload),
                 }
             ]
         },
@@ -342,6 +350,151 @@ def test_native_success_requires_real_finish_on_next_response():
         "summary": "done",
     }
     assert recorder.stats()["native_success_without_finish"] == 0
+
+
+def test_successful_finish_latches_terminal_before_trailing_sdk_events():
+    recorder = _Recorder(
+        max_turns=10,
+        enforce_action_guard=True,
+        progress_evaluator=_robotwin_progress,
+    )
+
+    _complete_response(
+        recorder,
+        _native_status_tool_item(success=True, state_trustworthy=True),
+    )
+    recorder.observe(
+        {
+            "method": "item/started",
+            "payload": {
+                "item": {
+                    "type": "mcpToolCall",
+                    "server": "rpent",
+                    "tool": "finish",
+                    "status": "inProgress",
+                }
+            },
+        }
+    )
+    finish_item = {
+        **_native_status_tool_item(
+            success=True,
+            state_trustworthy=True,
+            tool="finish",
+        ),
+        "arguments": {"status": "success", "summary": "done"},
+    }
+    recorder.observe(
+        {
+            "method": "item/completed",
+            "payload": {"item": finish_item},
+        }
+    )
+    stats_after_finish = recorder.stats()
+
+    for _ in range(6):
+        recorder.observe(
+            {
+                "method": "thread/tokenUsage/updated",
+                "payload": {"token_usage": {}},
+            }
+        )
+        recorder.observe(
+            {
+                "method": "item/started",
+                "payload": {"item": {"type": "reasoning"}},
+            }
+        )
+        recorder.observe(
+            {
+                "method": "item/completed",
+                "payload": {"item": {"type": "reasoning"}},
+            }
+        )
+
+    stats = recorder.stats()
+    assert stats["terminal_latched"] is True
+    assert stats["guard_state"] == "terminated"
+    assert stats["planner_no_action_loop"] == 0
+    assert stats["max_consecutive_no_action_responses"] == (
+        stats_after_finish["max_consecutive_no_action_responses"]
+    )
+    assert recorder.consume_guard_warning() is None
+    assert recorder.error is None
+
+
+def test_token_usage_is_not_itself_a_guard_response():
+    recorder = _Recorder(max_turns=10, enforce_action_guard=True)
+    recorder.observe(
+        {
+            "method": "item/completed",
+            "payload": {"item": {"type": "reasoning"}},
+        }
+    )
+
+    for _ in range(10):
+        recorder.observe(
+            {
+                "method": "thread/tokenUsage/updated",
+                "payload": {"token_usage": {}},
+            }
+        )
+
+    assert recorder.stats()["logical_response_count"] == 0
+    assert recorder.no_action_responses == 0
+
+    recorder.observe(
+        {
+            "method": "item/started",
+            "payload": {"item": {"type": "reasoning"}},
+        }
+    )
+    assert recorder.stats()["logical_response_count"] == 1
+    assert recorder.no_action_responses == 1
+
+
+def test_failed_finish_result_does_not_latch_terminal():
+    recorder = _Recorder(
+        max_turns=10,
+        enforce_action_guard=True,
+        progress_evaluator=_robotwin_progress,
+    )
+    recorder.observe(
+        {
+            "method": "item/started",
+            "payload": {
+                "item": {
+                    "type": "mcpToolCall",
+                    "server": "rpent",
+                    "tool": "finish",
+                    "status": "inProgress",
+                }
+            },
+        }
+    )
+    recorder.observe(
+        {
+            "method": "item/completed",
+            "payload": {
+                "item": {
+                    "type": "mcpToolCall",
+                    "server": "rpent",
+                    "tool": "finish",
+                    "status": "failed",
+                    "arguments": {"status": "success"},
+                    "result": {"content": [{"type": "text", "text": "{}"}]},
+                }
+            },
+        }
+    )
+
+    stats = recorder.stats()
+    assert stats["terminal_latched"] is False
+    assert stats["terminal_tool_failure"] == 1
+    assert recorder.finish_result is None
+    assert recorder.abort_requested is True
+    assert recorder.error is not None
+    assert recorder.error.startswith("planner_terminal_tool_failed:")
 
 
 def test_native_success_text_only_response_aborts_with_specific_reason():
@@ -446,6 +599,16 @@ def test_codex_session_guard_steers_interrupts_and_cleans_up(tmp_path, monkeypat
 
         def stream(self):
             for index in range(5):
+                yield {
+                    "method": "item/started",
+                    "payload": {
+                        "turn_id": "sdk-turn-1",
+                        "item": {
+                            "id": f"reasoning-{index}",
+                            "type": "reasoning",
+                        },
+                    },
+                }
                 yield {
                     "method": "item/completed",
                     "payload": {

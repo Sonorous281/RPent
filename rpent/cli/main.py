@@ -1,4 +1,7 @@
+# Copyright 2026 The RPent Authors.
+
 """Physical agent main CLI entrypoint."""
+
 # `rpent/cli/`
 #
 # CLI entrypoints for RPent (currently just `main.py`).
@@ -67,10 +70,19 @@ def _strip_images(value):
 def _serialize_messages(messages: list[dict]) -> list[dict]:
     """Strip inline image payloads from messages before writing the transcript."""
     return [
-        {**{k: v for k, v in m.items() if k != "content"},
-         "content": _strip_images(m.get("content"))}
+        {
+            **{k: v for k, v in m.items() if k != "content"},
+            "content": _strip_images(m.get("content")),
+        }
         for m in messages
     ]
+
+
+def _resolve_finish_result(env_name: str, toolkit, planner_finish):
+    """Use RoboTwin's executed finish result instead of the model's arguments."""
+    if env_name != "robotwin":
+        return planner_finish
+    return getattr(toolkit, "verified_finish_result", None)
 
 
 # ---------------------------------------------------------------------------
@@ -83,51 +95,103 @@ def _build_argparser() -> argparse.ArgumentParser:
         description="Standalone hybrid LLM-in-the-loop agent for LIBERO PRO",
     )
 
-    ap.add_argument("--env", dest="env_name", required=True, choices=["libero"],
-                    help="Environment backend: libero.")
+    ap.add_argument(
+        "--env",
+        dest="env_name",
+        required=True,
+        choices=["libero", "robotwin"],
+        help="Environment backend: libero or robotwin.",
+    )
 
     # models
-    ap.add_argument("--planner", default="api",
-                    choices=["api", "claude_code", "codex"],
-                    help="LLM backend: api | claude_code | codex.")
-    ap.add_argument("--model", default=None,
-                    help="Model id. For the 'api' planner, prefix the provider "
-                         "(e.g. anthropic:claude-opus-4-8, openai:gpt-5.5, "
-                         "openai-chat:glm-5.2). For claude_code/codex this "
-                         "overrides the backend default model.")
-    ap.add_argument("--base-url", default=None,
-                    help="API base URL. Defaults to the selected backend's base URL env var.")
+    ap.add_argument(
+        "--planner",
+        default="api",
+        choices=["api", "claude_code", "codex"],
+        help="LLM backend: api | claude_code | codex.",
+    )
+    ap.add_argument(
+        "--model",
+        default=None,
+        help="Model id. For the 'api' planner, prefix the provider "
+        "(e.g. anthropic:claude-opus-4-8, openai:gpt-5.5, "
+        "openai-chat:glm-5.2). For claude_code/codex this "
+        "overrides the backend default model.",
+    )
+    ap.add_argument(
+        "--reasoning-effort",
+        choices=["minimal", "low", "medium", "high", "xhigh"],
+        default=None,
+        help="Codex reasoning effort. When omitted, keep the Codex config default.",
+    )
+    ap.add_argument(
+        "--base-url",
+        default=None,
+        help="API base URL. Defaults to the selected backend's base URL env var.",
+    )
     ap.add_argument("--max-turns", type=int, default=100)
     ap.add_argument("--max-tokens", type=int, default=8192)
-    ap.add_argument("--no-images", action="store_true",
-                    help="Never send image bytes to the model (api planner only). "
-                         "Use for text-only models that reject image input "
-                         "(e.g. 400 \"message type 'image_url' is not supported\"); "
-                         "read_image then returns the file path with a notice.")
-    ap.add_argument("--planner-timeout-s", type=int, default=None,
-                    help="Wall-clock cap for the claude_code/codex planner "
-                         "subprocess. Defaults to CODEX_TIMEOUT_S (codex only), "
-                         "CELL_TIMEOUT_S, or 1200.")
-    ap.add_argument("--claude-code-max-budget-usd", type=float, default=None,
-                    help="Budget passed to claude -p --max-budget-usd. "
-                         "Defaults to MAX_BUDGET_USD env or 10.")
+    ap.add_argument(
+        "--no-images",
+        action="store_true",
+        help="Never send image bytes to the model (api planner only). "
+        "Use for text-only models that reject image input "
+        "(e.g. 400 \"message type 'image_url' is not supported\"); "
+        "read_image then returns the file path with a notice.",
+    )
+    ap.add_argument(
+        "--planner-timeout-s",
+        type=int,
+        default=None,
+        help="Wall-clock cap for the claude_code/codex planner "
+        "subprocess. Defaults to CODEX_TIMEOUT_S (codex only), "
+        "CELL_TIMEOUT_S, or 1200.",
+    )
+    ap.add_argument(
+        "--claude-code-max-budget-usd",
+        type=float,
+        default=None,
+        help="Budget passed to claude -p --max-budget-usd. "
+        "Defaults to MAX_BUDGET_USD env or 10.",
+    )
 
     # other config
     ap.add_argument("--output-dir", default=None)
-    ap.add_argument("--dashboard", action="store_true",
-                    help="Start a local dashboard server for this single run.")
-    ap.add_argument("--dashboard-host", default="127.0.0.1",
-                    help="Dashboard bind host. Defaults to 127.0.0.1.")
-    ap.add_argument("--dashboard-port", type=int, default=0,
-                    help="Dashboard port. 0 asks the OS for a free port.")
-    ap.add_argument("--dashboard-language", choices=["en", "zh-cn"], default="en",
-                    help="Dashboard UI language. 'zh-cn' serves the Chinese "
-                         "variant (index.zh-cn.html); defaults to English.")
-    ap.add_argument("--verbose", action="store_true",
-                    help="Enable DEBUG-level logging for stdout and the run.log "
-                         "file. Defaults to INFO when not set.")
-    ap.add_argument("--interactive", "-i", action="store_true",
-                    help="Interactive mode: opens an interactive cli session.")
+    ap.add_argument(
+        "--dashboard",
+        action="store_true",
+        help="Start a local dashboard server for this single run.",
+    )
+    ap.add_argument(
+        "--dashboard-host",
+        default="127.0.0.1",
+        help="Dashboard bind host. Defaults to 127.0.0.1.",
+    )
+    ap.add_argument(
+        "--dashboard-port",
+        type=int,
+        default=0,
+        help="Dashboard port. 0 asks the OS for a free port.",
+    )
+    ap.add_argument(
+        "--dashboard-language",
+        choices=["en", "zh-cn"],
+        default="en",
+        help="Dashboard UI language. 'zh-cn' serves the Chinese "
+        "variant (index.zh-cn.html); defaults to English.",
+    )
+    ap.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable DEBUG-level logging for stdout and the run.log "
+        "file. Defaults to INFO when not set.",
+    )
+    ap.add_argument(
+        "--interactive",
+        "-i",
+        action="store_true",
+        help="Interactive mode: opens an interactive cli session.",
+    )
 
     return ap
 
@@ -154,7 +218,8 @@ def main() -> int:
         from rpent.dashboard.launcher import apply_to_args, defaults_from_args
 
         dashboard_server = DashboardServer(
-            host=args.dashboard_host, port=args.dashboard_port,
+            host=args.dashboard_host,
+            port=args.dashboard_port,
             language=args.dashboard_language,
         )
         dashboard_url = dashboard_server.start()
@@ -203,11 +268,19 @@ def main() -> int:
         env_name=env_name,
         base_url=args.base_url,
         model=args.model,
+        reasoning_effort=args.reasoning_effort,
         max_tokens=args.max_tokens,
         planner_timeout_s=args.planner_timeout_s,
         claude_code_max_budget_usd=args.claude_code_max_budget_usd,
         dashboard=dashboard_state,
         no_images=args.no_images,
+        enforce_action_guard=env_spec.planner_progress_guard,
+        planner_guard_warn_after=getattr(
+            args, "planner_guard_warn_after", 3
+        ),
+        planner_guard_abort_after=getattr(
+            args, "planner_guard_abort_after", 5
+        ),
     )
     prompt_bundle = env_spec.prompts
 
@@ -239,20 +312,28 @@ def main() -> int:
         await_first_prompt = start_first_prompt_resolver(input_queue)
 
     # --- initialise environment --------------------------------------------
+    env_startup_started = time.monotonic()
     daemons, primitives_kwargs = env_spec.init_runtime(args, output_dir)
+    env_server_startup_s = time.monotonic() - env_startup_started
 
     # --- toolkit -----------------------------------------------------------
-    toolkit = get_toolkit(
-        env_name,
-        primitives_kwargs=primitives_kwargs,
-        video_path=str(Path(output_dir) / "episode.mp4"),
-        dashboard=dashboard_state,
-    )
+    try:
+        toolkit = get_toolkit(
+            env_name,
+            primitives_kwargs=primitives_kwargs,
+            video_path=str(Path(output_dir) / "episode.mp4"),
+            dashboard=dashboard_state,
+        )
+    except Exception:
+        for daemon in reversed(daemons):
+            daemon.stop()
+        raise
 
     # --- agent loop --------------------------------------------------------
-    t0 = time.time()
+    t0 = time.monotonic()
     finish_result, messages, agent_error = None, [], None
     stats: dict = {}
+    planner_wall_s = 0.0
     first_user_msg: str | None = user_msg
     if await_first_prompt is not None:
         # Block until the opening prompt typed during startup is ready.
@@ -261,6 +342,7 @@ def main() -> int:
             logger.info("no task entered; ending session before start.")
     try:
         if first_user_msg is not None:
+            planner_started = time.monotonic()
             result = planner.solve(
                 system_prompt=system_prompt,
                 user_message=first_user_msg,
@@ -268,27 +350,108 @@ def main() -> int:
                 max_turns=args.max_turns,
                 input_queue=input_queue,
             )
-            finish_result = result.finish_result
+            finish_result = _resolve_finish_result(
+                env_name,
+                toolkit,
+                result.finish_result,
+            )
             messages = result.messages
             stats = result.stats
             agent_error = result.error
+            planner_wall_s = time.monotonic() - planner_started
     except Exception as e:
         logger.error("EXCEPTION in agent loop: %s", e)
+        planner_wall_s = time.monotonic() - planner_started
+        agent_error = f"{type(e).__name__}: {e}"
     finally:
-        # Agent-side: flush the episode video before the env+model
-        recipe_path = toolkit.write_recipe(recipe_tag)
-        logger.info("recipe: %s", recipe_path)
+        shutdown_started = time.monotonic()
+        try:
+            # Agent-side: flush the episode video before the env+model.
+            recipe_path = toolkit.write_recipe(recipe_tag)
+            logger.info("recipe: %s", recipe_path)
+        except Exception as error:
+            logger.error("failed to write recipe: %s", error)
+        finally:
+            try:
+                toolkit.close()
+            finally:
+                for daemon in reversed(daemons):
+                    daemon.stop()
+        shutdown_s = time.monotonic() - shutdown_started
 
-        toolkit.close()
-        for d in daemons:
-            d.stop()
+    try:
+        run_telemetry = toolkit.finalize_run(
+            planner_stats=stats,
+            lifecycle={
+                "env_server_startup_s": env_server_startup_s,
+                "planner_wall_s": planner_wall_s,
+                "shutdown_s": shutdown_s,
+                "planner_outcome": (
+                    "planner_error"
+                    if agent_error
+                    else (
+                        "planner_finish"
+                        if finish_result is not None
+                        else "planner_returned_without_finish"
+                    )
+                ),
+            },
+        )
+    except Exception as error:
+        logger.error("failed to finalize run telemetry: %s", error)
+        run_telemetry = {}
+        telemetry_error = f"telemetry finalize failed: {type(error).__name__}: {error}"
+        agent_error = (
+            f"{agent_error}; {telemetry_error}" if agent_error else telemetry_error
+        )
+    if run_telemetry:
+        stats = {**stats, "run_telemetry": run_telemetry}
+    if run_telemetry.get("hard_failure"):
+        original_finish = finish_result
+        control_path_violation = int(
+            run_telemetry.get("control_path_violation", 0)
+        )
+        terminal_protocol_violation = int(
+            run_telemetry.get("terminal_protocol_violation", 0)
+        )
+        if control_path_violation:
+            failure_summary = (
+                "RoboTwin Planner used a forbidden environment control path."
+            )
+        elif terminal_protocol_violation:
+            failure_summary = (
+                "RoboTwin Planner returned without the required finish call."
+            )
+        else:
+            failure_summary = "RoboTwin run failed a required protocol gate."
+        finish_result = {
+            "_runtime_failure": True,
+            "finish_origin": run_telemetry.get("finish_origin", "no_finish"),
+            "status": "failure",
+            "success": False,
+            "summary": failure_summary,
+            "control_path_violation": control_path_violation,
+            "terminal_protocol_violation": terminal_protocol_violation,
+            "hard_failure_reasons": run_telemetry.get(
+                "hard_failure_reasons",
+                [],
+            ),
+            "original_finish": original_finish,
+        }
+        violation_error = "RoboTwin hard failure: " + ", ".join(
+            run_telemetry.get("hard_failure_reasons", ["unknown_protocol_gate"])
+        )
+        agent_error = (
+            f"{agent_error}; {violation_error}" if agent_error else violation_error
+        )
 
-    elapsed = time.time() - t0
+    elapsed = time.monotonic() - t0
 
     transcript_path = Path(output_dir) / f"transcript_{recipe_tag}.json"
     record = {
         **task_desc,
         "model": args.model,
+        "reasoning_effort": args.reasoning_effort,
         "elapsed_s": round(elapsed, 1),
         "finish": finish_result,
         "stats": stats,
@@ -298,10 +461,12 @@ def main() -> int:
         json.dump(record, f, indent=2, default=str)
 
     logger.info("elapsed: %.1fs", elapsed)
-    logger.info("usage: in=%s out=%s tool_calls=%s",
-                 stats.get('total_input_tokens', '?'),
-                 stats.get('total_output_tokens', '?'),
-                 stats.get('tool_calls', '?'))
+    logger.info(
+        "usage: in=%s out=%s tool_calls=%s",
+        stats.get("total_input_tokens", "?"),
+        stats.get("total_output_tokens", "?"),
+        stats.get("tool_calls", "?"),
+    )
     logger.info("transcript: %s", transcript_path)
     if agent_error:
         logger.error("error: %s", agent_error)

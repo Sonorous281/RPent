@@ -1,0 +1,17 @@
+{
+  "repository": "RLinf/LingBot-VLA-RoboTwin-EEF-ckpt1500",
+  "revision": "c55199f25a10397e79dce177ee11c8774fb8edde",
+  "policy_name": "robotwin_eef",
+  "robot_config": "configs/robot_configs/robotwin_eef.yaml",
+  "norm_stats": "norm_stats/robotwin_eef.json",
+  "qwen_base": "qwen_base",
+  "server_module": "deploy.lingbot_vla_policy",
+  "camera_order": [
+    "cam_high",
+    "cam_left_wrist",
+    "cam_right_wrist"
+  ],
+  "state_layout": "eef16",
+  "action_layout": "eef16",
+  "use_length": 50
+}

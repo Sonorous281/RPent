@@ -408,6 +408,7 @@ def main() -> int:
         stats = {**stats, "run_telemetry": run_telemetry}
     if run_telemetry.get("failure_class") in {
         "planner_failure",
+        "planner_runtime_failure",
         "control_path_failure",
         "infra_failure",
     }:

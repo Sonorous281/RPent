@@ -57,6 +57,7 @@ NATIVE_SUCCESS_FINISH_WARNING = (
 GUARD_ACTIVE = "active"
 GUARD_FINISH_PENDING = "finish_pending"
 GUARD_TERMINATED = "terminated"
+INTERRUPT_GRACE_S = 10.0
 
 # ---------------------------------------------------------------------------
 # Public backend
@@ -199,19 +200,86 @@ class CodexPlanner:
         )
         worker.start()
         try:
-            worker.join(timeout=self._timeout_s)
+            deadline = time.monotonic() + self._timeout_s
+            interrupt_deadline: float | None = None
+            planner_timed_out = False
+            while worker.is_alive():
+                now = time.monotonic()
+                if state.get("interrupt_requested"):
+                    interrupt_deadline = interrupt_deadline or (
+                        now + getattr(self, "_interrupt_grace_s", INTERRUPT_GRACE_S)
+                    )
+                    if now >= interrupt_deadline:
+                        state["interrupt_convergence_error"] = (
+                            "sdk_interrupt_did_not_converge"
+                        )
+                        _close_codex(state)
+                        worker.join(timeout=1)
+                        break
+                elif now >= deadline:
+                    planner_timed_out = True
+                    _request_interrupt(state, origin="planner_timeout")
+                    interrupt_deadline = (
+                        now + getattr(self, "_interrupt_grace_s", INTERRUPT_GRACE_S)
+                    )
+                worker.join(timeout=0.05)
 
             error: str | None = None
-            if worker.is_alive():
+            if (
+                state.get("interrupt_requested")
+                and not state.get("stream_terminal_event_seen")
+            ):
+                state["interrupt_convergence_error"] = (
+                    "sdk_interrupt_did_not_converge"
+                )
+            if state.get("interrupt_convergence_error"):
+                error = (
+                    "planner_runtime_failure: "
+                    "sdk_interrupt_did_not_converge"
+                )
+                rendered = f"\n[codex-planner] {error}\n"
+                with open(output_path, "a") as out_f:
+                    out_f.write(rendered)
+                with open(raw_stream_path, "a") as raw_f:
+                    _write_jsonl(
+                        raw_f,
+                        {
+                            "type": "runtime_failure",
+                            "message": error,
+                            "interrupt_origin": state.get("interrupt_origin"),
+                        },
+                    )
+                logger.info(rendered.rstrip())
+            elif planner_timed_out:
                 error = f"Codex SDK timed out after {self._timeout_s}s"
-                _interrupt(state)
                 rendered = f"\n[codex-planner] {error}\n"
                 with open(output_path, "a") as out_f:
                     out_f.write(rendered)
                 with open(raw_stream_path, "a") as raw_f:
                     _write_jsonl(raw_f, {"type": "timeout", "message": error})
                 logger.info(rendered.rstrip())
-                worker.join(timeout=15)
+            elif worker.is_alive():
+                if not state.get("interrupt_requested"):
+                    error = f"Codex SDK timed out after {self._timeout_s}s"
+                    _request_interrupt(state, origin="planner_timeout")
+                _close_codex(state)
+                error = error or (
+                    "planner_runtime_failure: Codex worker did not exit"
+                )
+                rendered = f"\n[codex-planner] {error}\n"
+                with open(output_path, "a") as out_f:
+                    out_f.write(rendered)
+                with open(raw_stream_path, "a") as raw_f:
+                    _write_jsonl(
+                        raw_f,
+                        {
+                            "type": "runtime_failure",
+                            "message": error,
+                            "interrupt_origin": state.get("interrupt_origin"),
+                        },
+                    )
+                logger.info(rendered.rstrip())
+                worker.join(timeout=1)
             elif "error" in state:
                 exc = state["error"]
                 error = f"{type(exc).__name__}: {exc}"
@@ -243,6 +311,19 @@ class CodexPlanner:
                 "raw_stream_path": str(raw_stream_path),
                 "last_message_path": str(last_message_path),
                 "last_message_chars": len(recorder.final_response or ""),
+                "interrupt_requested": bool(state.get("interrupt_requested")),
+                "interrupt_origin": state.get("interrupt_origin"),
+                "interrupt_count": int(state.get("interrupt_count", 0)),
+                "interrupt_acknowledged": bool(
+                    state.get("interrupt_acknowledged")
+                ),
+                "stream_terminal_event_seen": bool(
+                    state.get("stream_terminal_event_seen")
+                ),
+                "last_sdk_event_method": state.get("last_sdk_event_method"),
+                "sdk_interrupt_did_not_converge": int(
+                    bool(state.get("interrupt_convergence_error"))
+                ),
                 **recorder.stats(),
             },
             error=error,
@@ -300,10 +381,10 @@ class CodexPlanner:
                                 if stop_steer.is_set():
                                     return
                                 if nxt is None:
-                                    try:
-                                        turn.interrupt()
-                                    except Exception:
-                                        pass
+                                    _request_interrupt(
+                                        state,
+                                        origin="user_input_closed",
+                                    )
                                     return
                                 rendered = f"\n[user] {nxt}\n"
                                 with write_lock:
@@ -330,6 +411,10 @@ class CodexPlanner:
 
                     try:
                         for event in turn.stream():
+                            method = str(_get(event, "method", ""))
+                            state["last_sdk_event_method"] = method
+                            if method == "turn/completed":
+                                state["stream_terminal_event_seen"] = True
                             _write_jsonl(raw_f, _message_to_json(event))
                             if rendered := recorder.observe(event):
                                 with write_lock:
@@ -354,17 +439,16 @@ class CodexPlanner:
                             if recorder.guard_state == GUARD_TERMINATED:
                                 break
                             if recorder.abort_requested:
-                                try:
-                                    turn.interrupt()
-                                except Exception:
-                                    pass
-                                break
+                                _request_interrupt(
+                                    state,
+                                    origin="guard_abort",
+                                )
                         recorder._complete_pending_response()
                         if recorder.abort_requested:
-                            try:
-                                turn.interrupt()
-                            except Exception:
-                                pass
+                            _request_interrupt(
+                                state,
+                                origin="guard_abort",
+                            )
                     finally:
                         if stop_steer is not None:
                             stop_steer.set()
@@ -447,6 +531,7 @@ class _Recorder:
     native_success_finish_required_count: int = 0
     native_success_without_finish: bool = False
     terminal_tool_failure: bool = False
+    progress_adapter_error: bool = False
     abort_requested: bool = False
     guard_state: str = GUARD_ACTIVE
     logical_response_count: int = 0
@@ -485,10 +570,18 @@ class _Recorder:
                 self.native_success_without_finish
             ),
             "terminal_tool_failure": int(self.terminal_tool_failure),
+            "planner_runtime_progress_adapter_error": int(
+                self.progress_adapter_error
+            ),
             "terminal_latched": self.guard_state == GUARD_TERMINATED,
             "guard_state": self.guard_state,
             "logical_response_count": self.logical_response_count,
-            "planner_no_action_loop": int(self.abort_requested),
+            "planner_no_action_loop": int(
+                bool(
+                    self.error
+                    and self.error.startswith("planner_no_action_loop:")
+                )
+            ),
             "planner_action_guard": {
                 "enabled": self.enforce_action_guard,
                 "warn_after": self.action_guard_warn_after,
@@ -573,7 +666,7 @@ class _Recorder:
                     str(_get(item, "tool", item_type))
                 ).lower()
                 progress = (
-                    self.progress_evaluator(item)
+                    self._evaluate_progress(item)
                     if self.progress_evaluator is not None
                     else None
                 )
@@ -654,6 +747,9 @@ class _Recorder:
         if self.guard_state != GUARD_ACTIVE:
             self._reset_response_state()
             return
+        if self.progress_adapter_error:
+            self._reset_response_state()
+            return
         if self.enforce_action_guard and self._native_success_finish_required:
             if self._response_called_finish:
                 self._native_success_finish_required = False
@@ -712,6 +808,32 @@ class _Recorder:
         else:
             self.no_action_responses = 0
         self._reset_response_state()
+
+    def _evaluate_progress(self, item: Any) -> dict[str, Any] | None:
+        normalized = _jsonable(item)
+        if not isinstance(normalized, dict):
+            self._set_progress_adapter_error(
+                "normalized MCP tool item is not a JSON object"
+            )
+            return None
+        try:
+            progress = self.progress_evaluator(normalized)
+        except Exception as error:
+            self._set_progress_adapter_error(
+                f"{type(error).__name__}: {error}"
+            )
+            return None
+        if progress is not None and not isinstance(progress, dict):
+            self._set_progress_adapter_error(
+                "progress evaluator returned a non-object signal"
+            )
+            return None
+        return progress
+
+    def _set_progress_adapter_error(self, reason: str) -> None:
+        self.progress_adapter_error = True
+        self.abort_requested = True
+        self.error = f"planner_runtime_progress_adapter_error: {reason}"
 
     def _reset_response_state(self) -> None:
         self._response_item_types.clear()
@@ -893,12 +1015,22 @@ def _codex_mcp_config_overrides(
     return [f"{key}={json.dumps(value)}" for key, value in config]
 
 
-def _interrupt(state: dict[str, Any]) -> None:
-    if (turn := state.get("turn")) is not None:
-        try:
-            turn.interrupt()
-        except Exception:
-            pass
+def _request_interrupt(state: dict[str, Any], *, origin: str) -> None:
+    if state.get("interrupt_requested"):
+        return
+    state["interrupt_requested"] = True
+    state["interrupt_origin"] = origin
+    state["interrupt_count"] = int(state.get("interrupt_count", 0)) + 1
+    if (turn := state.get("turn")) is None:
+        return
+    try:
+        turn.interrupt()
+        state["interrupt_acknowledged"] = True
+    except Exception as error:
+        state["interrupt_error"] = f"{type(error).__name__}: {error}"
+
+
+def _close_codex(state: dict[str, Any]) -> None:
     if (codex := state.get("codex")) is not None:
         try:
             codex.close()
@@ -922,7 +1054,7 @@ def _message_to_json(message: Any) -> dict[str, Any]:
 def _jsonable(value: Any) -> Any:
     value = _unwrap(value)
     if hasattr(value, "model_dump"):
-        return value.model_dump(mode="json", exclude_none=True)
+        return _jsonable(value.model_dump(mode="json", exclude_none=True))
     if isinstance(value, dict):
         return {str(k): _jsonable(v) for k, v in value.items()}
     if isinstance(value, list | tuple):

@@ -484,6 +484,20 @@ class RoboTwinToolkit(Toolkit):
             planner_stats.get("terminal_tool_failure", 0)
         )
         terminal_latched = bool(planner_stats.get("terminal_latched", False))
+        progress_adapter_error = int(
+            planner_stats.get("planner_runtime_progress_adapter_error", 0)
+        )
+        interrupt_count = int(planner_stats.get("interrupt_count", 0))
+        interrupt_origin = planner_stats.get("interrupt_origin")
+        interrupt_acknowledged = bool(
+            planner_stats.get("interrupt_acknowledged", False)
+        )
+        stream_terminal_event_seen = bool(
+            planner_stats.get("stream_terminal_event_seen", False)
+        )
+        interrupt_did_not_converge = int(
+            planner_stats.get("sdk_interrupt_did_not_converge", 0)
+        )
         hard_failure_reasons: list[str] = []
         if audit["control_path_violation"] > 0:
             hard_failure_reasons.append("control_path_violation")
@@ -493,6 +507,14 @@ class RoboTwinToolkit(Toolkit):
             hard_failure_reasons.append("planner_no_action_loop")
         if native_success_without_finish > 0:
             hard_failure_reasons.append("native_success_without_finish")
+        if progress_adapter_error > 0:
+            hard_failure_reasons.append(
+                "planner_runtime_progress_adapter_error"
+            )
+        if interrupt_did_not_converge > 0:
+            hard_failure_reasons.append(
+                "sdk_interrupt_did_not_converge"
+            )
         state_trustworthy = self._latest_status.get("state_trustworthy") is True
         native_success = (
             self._latest_status.get("success") is True and state_trustworthy
@@ -513,7 +535,14 @@ class RoboTwinToolkit(Toolkit):
             hard_failure_reasons.append("planner_terminal_tool_failed")
         if post_finish_guard_continued:
             hard_failure_reasons.append("post_finish_guard_continued")
-        if (
+        if progress_adapter_error or interrupt_did_not_converge:
+            failure_class = "planner_runtime_failure"
+            failure_reason = (
+                "planner_runtime_progress_adapter_error"
+                if progress_adapter_error
+                else "sdk_interrupt_did_not_converge"
+            )
+        elif (
             terminal_tool_failure
             or post_finish_guard_continued
             or native_success_without_finish
@@ -576,6 +605,10 @@ class RoboTwinToolkit(Toolkit):
                 "observed": self._mutation_observed_count,
                 "unknown_mutation_path": len(unknown_mutations),
             },
+            "interrupt_count": interrupt_count,
+            "interrupt_origin": interrupt_origin,
+            "interrupt_acknowledged": interrupt_acknowledged,
+            "stream_terminal_event_seen": stream_terminal_event_seen,
         }
         path = self._output_dir / "robotwin_telemetry.json"
         if getattr(self, "_debug_telemetry", False):

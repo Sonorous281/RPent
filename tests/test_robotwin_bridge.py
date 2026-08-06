@@ -811,6 +811,45 @@ def test_robotwin_finalize_run_marks_planner_no_action_loop_as_hard_failure(
     assert telemetry["finish_origin"] == "guard_abort"
 
 
+@pytest.mark.parametrize(
+    ("planner_stats", "failure_reason"),
+    [
+        (
+            {"planner_runtime_progress_adapter_error": 1},
+            "planner_runtime_progress_adapter_error",
+        ),
+        (
+            {
+                "sdk_interrupt_did_not_converge": 1,
+                "interrupt_count": 1,
+                "interrupt_origin": "guard_abort",
+                "interrupt_acknowledged": True,
+                "stream_terminal_event_seen": False,
+            },
+            "sdk_interrupt_did_not_converge",
+        ),
+    ],
+)
+def test_robotwin_finalize_run_preserves_planner_runtime_failure(
+    tmp_path,
+    planner_stats,
+    failure_reason,
+):
+    toolkit = _telemetry_only_toolkit(tmp_path)
+
+    telemetry = toolkit.finalize_run(
+        planner_stats=planner_stats,
+        lifecycle={"planner_outcome": "planner_error"},
+    )
+
+    assert telemetry["failure_class"] == "planner_runtime_failure"
+    assert telemetry["failure_reason"] == failure_reason
+    assert telemetry["accepted_episode_success"] is False
+    assert telemetry["interrupt_count"] == int(
+        planner_stats.get("interrupt_count", 0)
+    )
+
+
 def test_robotwin_finalize_run_correlates_planner_tool_events(tmp_path):
     toolkit = _telemetry_only_toolkit(tmp_path)
     toolkit._telemetry_events = [

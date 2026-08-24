@@ -158,18 +158,34 @@ These tools do not advance the environment.
 Live dashboard
 --------------
 
-Add ``--dashboard`` to start a local monitor. It selects an available
-port and prints the URL in the terminal:
+Add ``--dashboard`` to start a long-lived local Dashboard Session. It
+selects an available port and prints the URL in the terminal:
 
 .. code-block:: bash
 
    rpent --env libero --dashboard \
-     --suite libero_object_swap --task 2 --seed 0 \
      --planner claude_code --model claude-opus-4-8
 
-The dashboard streams reasoning, agentview + wrist camera + Pi0.5
-overlays, and an action timeline. Use
-``--dashboard-language zh-cn`` for the Chinese UI.
+Open the URL, confirm the Session configuration, and click **Start Session**.
+After the shared services are ready, start a TaskRun from the page with:
+
+.. code-block:: text
+
+   /rpent-task libero_object_swap 2 0
+
+The Dashboard launcher supports the ``api``, ``claude_code``, and ``codex``
+planners. Configure ``--planner`` and ``--model`` as for a normal run; see
+:doc:`configure_planner`.
+
+Each TaskRun gets a fresh environment while the VLA and SAM3 services are
+reused by the Session. Submit a new ``/rpent-task`` to start or switch tasks;
+during a run, normal messages steer the agent and Esc requests an interruption.
+Press Ctrl+C in the terminal to stop the Session.
+
+``--dashboard`` cannot be combined with ``--interactive`` or
+``--env-endpoint``. External ``--vla-endpoint`` and ``--sam3-endpoint``
+services remain supported. Use ``--dashboard-language zh-cn`` for the
+Chinese UI.
 
 Bringing your own VLA
 ---------------------
@@ -184,3 +200,30 @@ client without touching the env by:
    surface (e.g. ``pi0_pick`` → ``mymodel_pick``) needs to change.
 
 See :doc:`../development/add_primitive` for the full walkthrough.
+
+Reproducing results
+-------------------
+
+The following results reproduce
+:doc:`Harness VLA <../awesome_works/harnessvla>` on two LIBERO-PRO suites.
+On the `reproduce/libero
+<https://github.com/RLinf/RPent/tree/reproduce/libero>`_ branch, use
+``gpt-5.5`` to reproduce these results:
+
+- ``libero_10_task``: 70% (70/100)
+- ``libero_10_swap``: 55% (55/100)
+
+Reproduction command:
+
+.. code-block:: bash
+
+   rpent --env libero \
+     --suite libero_10_task --task "task" --seed "seed" \
+     --planner codex \
+     --model gpt-5.5 \
+     --max-turns 100 \
+     --planner-timeout-s 5000 \
+     --max-episode-steps 10000 \
+     --libero-type pro \
+     --vla-endpoint http://127.0.0.1:8220 \
+     --sam3-endpoint http://127.0.0.1:8114

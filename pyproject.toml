@@ -114,7 +114,7 @@ robotwin = [
     "torch==2.7.1",
     "torchvision==0.22.1",
     "torchaudio==2.7.1",
-    "rlinf-robotwin-runtime @ git+https://github.com/Sonorous281/RoboTwin.git@84bb73fcfffdb434b78b93765187c751a2ba3bff",
+    "rlinf-robotwin-runtime @ git+https://github.com/Sonorous281/RoboTwin.git@c76f1d12d1d09190486670ea45005bb519effb72",
     "rlinf-lingbotvla @ git+https://github.com/Sonorous281/lingbot-vla.git@cff41cfe13ed9859854f9654c593e2f1d112f52b",
 ]
 

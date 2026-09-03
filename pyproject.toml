@@ -103,6 +103,17 @@ robocasa = [
 robotwin = [
     # TODO: replace fixed owner-controlled revisions with released versions.
     "rpent[rlinf]",
+    # CUDA torch stack — declared as direct deps so the [tool.uv.sources]
+    # cu128 routing below is honoured. uv's pip interface only applies
+    # [tool.uv.sources] to the *root* project's direct dependencies; when
+    # torch is purely transitive (via the git runtime packages below, which
+    # pin ``torch==2.7.1`` as a plain CPU-agnostic version), the resolver
+    # pulls the CPU wheel from the PyPI mirror. Declaring the stack here
+    # lets RPent — the deployment integration — own the CUDA-wheel source,
+    # while the leaf runtime packages continue to own the version pin.
+    "torch==2.7.1",
+    "torchvision==0.22.1",
+    "torchaudio==2.7.1",
     "rlinf-robotwin-runtime @ git+https://github.com/Sonorous281/RoboTwin.git@84bb73fcfffdb434b78b93765187c751a2ba3bff",
     "rlinf-lingbotvla @ git+https://github.com/Sonorous281/lingbot-vla.git@cff41cfe13ed9859854f9654c593e2f1d112f52b",
 ]

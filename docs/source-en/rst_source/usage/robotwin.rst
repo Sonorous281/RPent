@@ -32,6 +32,36 @@ LingBot runtime packages pin ``torch==2.7.1`` and own the version, while
 ``--torch-backend=cu128`` routes that transitive Torch to the official CUDA
 wheel. You do not need to run the RLinf installer or clone RoboTwin separately.
 
+Two runtime packages cannot be expressed as normal ``[robotwin]`` dependencies
+and ship their own install entry points instead. Run them after the main
+install:
+
+.. code-block:: bash
+
+   apply-lerobot-slim
+   robotwin-install-curobo
+
+``apply-lerobot-slim`` (from ``rlinf-lingbotvla``) installs ``lerobot==0.4.2``
+with ``--no-deps`` and applies three slim patch files. LeRobot cannot be a
+plain dependency: its metadata pins ``gymnasium>=1.1.1`` and
+``datasets>=4.0`` which conflict with the runtime pins (``gymnasium==0.29.1``,
+``datasets==3.6.0``); ``--no-deps`` is therefore mandatory, and the slim
+patches defer LeRobot's hardware import chain so it co-exists with the runtime.
+
+``robotwin-install-curobo`` (from ``rlinf-robotwin-runtime``) installs
+``curobo @ git+...@d64c4b`` with ``--no-build-isolation`` against the already
+installed Torch, plus ``SETUPTOOLS_SCM_PRETEND_VERSION``. cuRobo cannot be a
+plain dependency: its build system requires Torch at build time and uses
+``setuptools_scm`` for versioning, but ``uv`` fetches a pinned git commit
+without tags so ``setuptools_scm`` cannot derive a version. The entry point
+encodes the correct build contract.
+
+These two steps are the only required post-install actions. In particular,
+``flash-attn``, ``lingbot-depth``, and ``MoGe`` are NOT on the RoboTwin-EEF
+inference path (LeRobot-style attention falls back to SDPA; the depth-align
+imports are guarded by ``try/except`` and disabled for the EEF config), so they
+are omitted from the runtime install.
+
 For networks closer to Chinese mirrors:
 
 .. code-block:: bash

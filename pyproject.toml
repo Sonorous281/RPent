@@ -111,7 +111,7 @@ robotwin = [
     # stack to the cu128 index for *all* resolutions, including the transitive
     # torch pulled by these git runtime packages — so RPent does not need to
     # re-declare the stack or maintain a RoboTwin-specific cu128 index.
-    "rlinf-robotwin-runtime @ git+https://github.com/Sonorous281/RoboTwin.git@c92c24f8b60e76de3a578f06c8b9e6d34a1f5806",
+    "rlinf-robotwin-runtime @ git+https://github.com/Sonorous281/RoboTwin.git@58517d912613a913653c865b80ca6e767be5b46f",
     "rlinf-lingbotvla @ git+https://github.com/Sonorous281/lingbot-vla.git@1bf8d5c7667e870317f11fd59690c8f4ebef6cad",
 ]
 

@@ -14,22 +14,26 @@ RoboTwin
 
 RoboTwin 要求 Python 3.11。宿主机需预先具备兼容的 CUDA toolkit/NVCC、编译
 工具链以及 SAPIEN 依赖的系统级 GL/EGL/Vulkan 库。创建虚拟环境并安装
-RoboTwin 所需依赖：
+RoboTwin 所需依赖，并通过 ``--torch-backend=cu128`` 选择 CUDA 12.8 的 Torch
+wheel：
 
 .. code-block:: bash
 
    cd /path/to/RPent
    uv venv --python 3.11
    source .venv/bin/activate
-   uv pip install -e ".[robotwin]"
+   uv pip install -e ".[robotwin]" --torch-backend=cu128
 
-用户不需要运行 RLinf 安装器，也不需要单独克隆 RoboTwin。
+``.[robotwin]`` extra 本身不声明 Torch——RoboTwin 与 LingBot runtime 包自行
+pin ``torch==2.7.1`` 并拥有版本，``--torch-backend=cu128`` 把该传递依赖的 Torch
+路由到官方 CUDA wheel。用户不需要运行 RLinf 安装器，也不需要单独克隆 RoboTwin。
 
 国内网络可使用 PyPI 镜像加速：\
 
 .. code-block:: bash
 
    uv pip install -e ".[robotwin]" \
+      --torch-backend=cu128 \
       --default-index https://mirrors.aliyun.com/pypi/simple \
       --index https://pypi.tuna.tsinghua.edu.cn/simple
 

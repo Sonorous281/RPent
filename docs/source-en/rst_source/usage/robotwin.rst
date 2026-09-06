@@ -17,22 +17,27 @@ Installation
 RoboTwin requires Python 3.11. The host must already provide a compatible
 CUDA toolkit/NVCC, a compiler toolchain, and the system GL/EGL/Vulkan
 libraries that SAPIEN depends on. Create an environment and install the
-RoboTwin dependency set:
+RoboTwin dependency set, selecting the CUDA 12.8 Torch wheels with
+``--torch-backend=cu128``:
 
 .. code-block:: bash
 
    cd /path/to/RPent
    uv venv --python 3.11
    source .venv/bin/activate
-   uv pip install -e ".[robotwin]"
+   uv pip install -e ".[robotwin]" --torch-backend=cu128
 
-You do not need to run the RLinf installer or clone RoboTwin separately.
+The ``.[robotwin]`` extra does not declare Torch itself — the RoboTwin and
+LingBot runtime packages pin ``torch==2.7.1`` and own the version, while
+``--torch-backend=cu128`` routes that transitive Torch to the official CUDA
+wheel. You do not need to run the RLinf installer or clone RoboTwin separately.
 
 For networks closer to Chinese mirrors:
 
 .. code-block:: bash
 
    uv pip install -e ".[robotwin]" \
+      --torch-backend=cu128 \
       --default-index https://mirrors.aliyun.com/pypi/simple \
       --index https://pypi.tuna.tsinghua.edu.cn/simple
 

@@ -38,15 +38,19 @@ install:
 
 .. code-block:: bash
 
+   uv pip install --no-deps "lerobot==0.4.2"
    apply-lerobot-slim
    robotwin-install-curobo
 
-``apply-lerobot-slim`` (from ``rlinf-lingbotvla``) installs ``lerobot==0.4.2``
-with ``--no-deps`` and applies three slim patch files. LeRobot cannot be a
-plain dependency: its metadata pins ``gymnasium>=1.1.1`` and
+``lerobot==0.4.2`` is installed with ``--no-deps`` and then slim-patched by the
+``apply-lerobot-slim`` entry point (from ``rlinf-lingbotvla``). LeRobot cannot
+be a plain dependency: its metadata pins ``gymnasium>=1.1.1`` and
 ``datasets>=4.0`` which conflict with the runtime pins (``gymnasium==0.29.1``,
-``datasets==3.6.0``); ``--no-deps`` is therefore mandatory, and the slim
-patches defer LeRobot's hardware import chain so it co-exists with the runtime.
+``datasets==3.6.0``); ``--no-deps`` is therefore mandatory. The entry point is
+patch-only by design — it applies three slim files on top of the already
+installed wheel (it does not install lerobot itself, so the ``--no-deps``
+install must run first); the slim patches defer LeRobot's hardware import chain
+so it co-exists with the runtime.
 
 ``robotwin-install-curobo`` (from ``rlinf-robotwin-runtime``) installs
 ``curobo @ git+...@d64c4b`` with ``--no-build-isolation`` against the already
@@ -69,7 +73,16 @@ For networks closer to Chinese mirrors:
    uv pip install -e ".[robotwin]" \
       --torch-backend=cu128 \
       --default-index https://mirrors.aliyun.com/pypi/simple \
-      --index https://pypi.tuna.tsinghua.edu.cn/simple
+      --index https://pypi.tuna.tsinghua.edu.cn/simple \
+      --find-links https://mirrors.aliyun.com/pytorch-wheels/cu128/ \
+      --index-strategy first-match
+
+The ``--find-links`` line points uv at a flat mirror of the CUDA 12.8 Torch
+stack (Torch, ``torchvision``, ``triton``, and the ``nvidia-*`` CUDA wheels).
+Without it, ``--torch-backend=cu128`` pulls those large wheels from
+download.pytorch.org, which is often throttled from mainland China; the
+flat mirror serves them from the same Alibaba CDN as the regular PyPI
+packages.
 
 .. note::
 

@@ -33,14 +33,17 @@ pin ``torch==2.7.1`` 并拥有版本，``--torch-backend=cu128`` 把该传递依
 
 .. code-block:: bash
 
+   uv pip install --no-deps "lerobot==0.4.2"
    apply-lerobot-slim
    robotwin-install-curobo
 
-``apply-lerobot-slim``（来自 ``rlinf-lingbotvla``）以 ``--no-deps`` 安装
-``lerobot==0.4.2`` 并应用三个 slim 补丁文件。LeRobot 不能作为普通依赖：其元数据
+``lerobot==0.4.2`` 先以 ``--no-deps`` 安装，再由 ``apply-lerobot-slim`` 入口
+（来自 ``rlinf-lingbotvla``）应用 slim 补丁。LeRobot 不能作为普通依赖：其元数据
 pin 住 ``gymnasium>=1.1.1`` 与 ``datasets>=4.0``，与 runtime pin（
-``gymnasium==0.29.1``、``datasets==3.6.0``）冲突，因此 ``--no-deps`` 是必须的；
-slim 补丁则推迟 LeRobot 的硬件导入链，使其与 runtime 共存。
+``gymnasium==0.29.1``、``datasets==3.6.0``）冲突，因此 ``--no-deps`` 是必须的。
+该入口按设计只负责打补丁——在已安装的 wheel 之上覆写三个 slim 文件（它本身并不
+安装 lerobot，所以上面的 ``--no-deps`` 安装必须先执行）；slim 补丁则推迟 LeRobot
+的硬件导入链，使其与 runtime 共存。
 
 ``robotwin-install-curobo``（来自 ``rlinf-robotwin-runtime``）以
 ``--no-build-isolation`` 针对已安装的 Torch 编译安装
@@ -61,7 +64,14 @@ depth-align 的导入被 ``try/except`` 包裹且在 EEF 配置下关闭），�
    uv pip install -e ".[robotwin]" \
       --torch-backend=cu128 \
       --default-index https://mirrors.aliyun.com/pypi/simple \
-      --index https://pypi.tuna.tsinghua.edu.cn/simple
+      --index https://pypi.tuna.tsinghua.edu.cn/simple \
+      --find-links https://mirrors.aliyun.com/pytorch-wheels/cu128/ \
+      --index-strategy first-match
+
+``--find-links`` 指向 CUDA 12.8 Torch wheel 的 flat 镜像（Torch、
+``torchvision``、``triton`` 以及 ``nvidia-*`` CUDA wheel）。没有它时，
+``--torch-backend=cu128`` 会从 download.pytorch.org 拉取这些大体积 wheel，
+国内访问常被限速；该 flat 镜像与普通 PyPI 包走同一条阿里云 CDN。
 
 .. note::
 

@@ -32,15 +32,13 @@ LingBot runtime packages pin ``torch==2.7.1`` and own the version, while
 ``--torch-backend=cu128`` routes that transitive Torch to the official CUDA
 wheel. You do not need to run the RLinf installer or clone RoboTwin separately.
 
-Two runtime packages cannot be expressed as normal ``[robotwin]`` dependencies
-and ship their own install entry points instead. Run them after the main
-install:
+One runtime package cannot be expressed as a normal ``[robotwin]`` dependency
+and ships its own install entry point instead. Run it after the main install:
 
 .. code-block:: bash
 
    uv pip install --no-deps "lerobot==0.4.2"
    apply-lerobot-slim
-   robotwin-install-curobo
 
 ``lerobot==0.4.2`` is installed with ``--no-deps`` and then slim-patched by the
 ``apply-lerobot-slim`` entry point (from ``rlinf-lingbotvla``). LeRobot cannot
@@ -52,15 +50,14 @@ installed wheel (it does not install lerobot itself, so the ``--no-deps``
 install must run first); the slim patches defer LeRobot's hardware import chain
 so it co-exists with the runtime.
 
-``robotwin-install-curobo`` (from ``rlinf-robotwin-runtime``) installs
-``curobo @ git+...@d64c4b`` with ``--no-build-isolation`` against the already
-installed Torch, plus ``SETUPTOOLS_SCM_PRETEND_VERSION``. cuRobo cannot be a
-plain dependency: its build system requires Torch at build time and uses
-``setuptools_scm`` for versioning, but ``uv`` fetches a pinned git commit
-without tags so ``setuptools_scm`` cannot derive a version. The entry point
-encodes the correct build contract.
+cuRobo (pinned @ ``d64c4b``) is a normal ``[robotwin]`` dependency declared in
+RoboTwin's ``pyproject.toml``. uv builds it automatically during the main
+install: RPent's ``[tool.uv.extra-build-dependencies]`` supplies the exact
+build-time ``torch==2.7.1`` and ``[tool.uv.extra-build-variables]`` supplies the
+``SETUPTOOLS_SCM_PRETEND_VERSION=0.7.0`` override the legacy cuRobo revision
+needs, so no separate post-install step is required.
 
-These two steps are the only required post-install actions. In particular,
+This step is the only required post-install action. In particular,
 ``flash-attn``, ``lingbot-depth``, and ``MoGe`` are NOT on the RoboTwin-EEF
 inference path (LeRobot-style attention falls back to SDPA; the depth-align
 imports are guarded by ``try/except`` and disabled for the EEF config), so they

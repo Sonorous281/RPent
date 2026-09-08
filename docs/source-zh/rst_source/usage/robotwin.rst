@@ -28,14 +28,13 @@ wheel：
 pin ``torch==2.7.1`` 并拥有版本，``--torch-backend=cu128`` 把该传递依赖的 Torch
 路由到官方 CUDA wheel。用户不需要运行 RLinf 安装器，也不需要单独克隆 RoboTwin。
 
-有两个 runtime 包无法表达为 ``[robotwin]`` 的普通依赖，因此通过各自的安装入口
+有一个 runtime 包无法表达为 ``[robotwin]`` 的普通依赖，因此通过安装入口
 命令提供。在主安装之后执行：
 
 .. code-block:: bash
 
    uv pip install --no-deps "lerobot==0.4.2"
    apply-lerobot-slim
-   robotwin-install-curobo
 
 ``lerobot==0.4.2`` 先以 ``--no-deps`` 安装，再由 ``apply-lerobot-slim`` 入口
 （来自 ``rlinf-lingbotvla``）应用 slim 补丁。LeRobot 不能作为普通依赖：其元数据
@@ -45,14 +44,13 @@ pin 住 ``gymnasium>=1.1.1`` 与 ``datasets>=4.0``，与 runtime pin（
 安装 lerobot，所以上面的 ``--no-deps`` 安装必须先执行）；slim 补丁则推迟 LeRobot
 的硬件导入链，使其与 runtime 共存。
 
-``robotwin-install-curobo``（来自 ``rlinf-robotwin-runtime``）以
-``--no-build-isolation`` 针对已安装的 Torch 编译安装
-``curobo @ git+...@d64c4b``，并设置 ``SETUPTOOLS_SCM_PRETEND_VERSION``。cuRobo
-不能作为普通依赖：其构建系统在构建期需要 Torch，并用 ``setuptools_scm`` 推导
-版本，而 ``uv`` 拉取固定 git commit 时不带 tag，``setuptools_scm`` 无法推导版本。
-该入口命令封装了正确的构建契约。
+cuRobo（pin 在 ``d64c4b``）是 RoboTwin ``pyproject.toml`` 中声明的普通
+``[robotwin]`` 依赖。uv 在主安装期间自动构建它：RPent 的
+``[tool.uv.extra-build-dependencies]`` 提供精确的构建期 ``torch==2.7.1``，
+``[tool.uv.extra-build-variables]`` 提供 legacy cuRobo 版本所需的
+``SETUPTOOLS_SCM_PRETEND_VERSION=0.7.0`` 覆盖，因此无需单独的安装后步骤。
 
-这两步是仅有的必须的安装后动作。尤其注意，``flash-attn``、``lingbot-depth`` 与
+这一步是仅有的必须的安装后动作。尤其注意，``flash-attn``、``lingbot-depth`` 与
 ``MoGe`` 不在 RoboTwin-EEF 推理路径上（LeRobot 式 attention 回退到 SDPA；
 depth-align 的导入被 ``try/except`` 包裹且在 EEF 配置下关闭），因此 runtime
 安装不包含它们。

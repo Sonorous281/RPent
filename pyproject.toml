@@ -112,7 +112,7 @@ robotwin = [
     # torch pulled by these git runtime packages — so RPent does not need to
     # re-declare the stack or maintain a RoboTwin-specific cu128 index.
     "rlinf-robotwin-runtime @ git+https://github.com/Sonorous281/RoboTwin.git@14a590d7c0a789f670cda0a595409d64a189776d",
-    "rlinf-lingbotvla @ git+https://github.com/Sonorous281/lingbot-vla.git@2e6c6554a0b854f01ac2aab2bf558c4651b09f7c",
+    "rlinf-lingbotvla @ git+https://github.com/Sonorous281/lingbot-vla.git@6e9a83cb752c0e39a27f6e60a185d4c3f29804c8",
 ]
 
 [tool.uv]

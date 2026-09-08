@@ -111,12 +111,26 @@ robotwin = [
     # stack to the cu128 index for *all* resolutions, including the transitive
     # torch pulled by these git runtime packages — so RPent does not need to
     # re-declare the stack or maintain a RoboTwin-specific cu128 index.
-    "rlinf-robotwin-runtime @ git+https://github.com/Sonorous281/RoboTwin.git@14a590d7c0a789f670cda0a595409d64a189776d",
+    "rlinf-robotwin-runtime @ git+https://github.com/Sonorous281/RoboTwin.git@675cca27dfdecca889b4728793411e4fe6186b8b",
     "rlinf-lingbotvla @ git+https://github.com/Sonorous281/lingbot-vla.git@684bfff2fa2328191f8e35eaaba33c7e1aa561d2",
 ]
 
 [tool.uv]
 prerelease = "allow"
+# ``extra-build-dependencies`` / ``extra-build-variables`` give the legacy
+# cuRobo @ d64c4b build the exact build-time Torch and the
+# ``SETUPTOOLS_SCM_PRETEND_VERSION`` override it needs. cuRobo versions itself
+# with dynamic setuptools_scm metadata, so ``match-runtime = true`` is not
+# usable here (uv cannot resolve dynamic metadata against the runtime); the
+# exact Torch build version is pinned instead. ``--torch-backend=cu128`` still
+# selects the cu128 wheel at install time.
+# NOTE: these are stable uv fields (no preview flag required) as of uv 0.9.x.
+
+[tool.uv.extra-build-dependencies]
+nvidia-curobo = ["torch==2.7.1"]
+
+[tool.uv.extra-build-variables]
+nvidia-curobo = { SETUPTOOLS_SCM_PRETEND_VERSION = "0.7.0" }
 
 [tool.setuptools]
 include-package-data = true

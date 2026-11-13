@@ -261,3 +261,49 @@ async def test_message_window_triggers_on_images_without_dropping_the_task():
     assert result.messages[0] == history[0]
     assert result.messages[-1] == history[-1]
     assert count_image_tokens_in(result.messages) == 1024
+
+
+@pytest.mark.anyio
+async def test_tiered_compaction_subtracts_reclaim_from_provider_usage():
+    from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.tools import RunContext
+    from pydantic_ai.usage import RequestUsage, RunUsage
+    from pydantic_ai_harness.compaction import SlidingWindowCompaction
+    from pydantic_ai_harness.compaction._shared import get_compaction_reclaim
+
+    from rpent.planner.compaction import ImageAwareCompaction
+
+    history = [
+        ModelRequest(parts=[UserPromptPart("task")]),
+        *observation("old"),
+        ModelResponse(parts=[TextPart("next")], usage=RequestUsage(input_tokens=2200)),
+        ModelRequest(parts=[UserPromptPart("continue")]),
+    ]
+
+    class Summarizer:
+        async def compact(self, messages, ctx):
+            pytest.fail("The sliding window already reclaimed the old image tokens")
+
+    strategy = ImageAwareCompaction(
+        tiers=[
+            SlidingWindowCompaction(max_messages=4, keep_messages=2, receipts=False),
+            Summarizer(),
+        ],
+        target_tokens=1000,
+    )
+    model = TestModel()
+    request = ModelRequestContext(
+        model=model,
+        messages=history,
+        model_settings=None,
+        model_request_parameters=ModelRequestParameters(),
+    )
+    result = await strategy.before_model_request(
+        RunContext(deps=None, model=model, usage=RunUsage()), request
+    )
+    compacted = result.messages
+    assert compacted[0] == history[0]
+    assert compacted[-2:] == history[-2:]
+    assert count_image_tokens_in(compacted) == 0
+    assert get_compaction_reclaim(result) >= 2048

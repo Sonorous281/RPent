@@ -389,8 +389,8 @@ class ImageAwareCompaction(AbstractCapability[AgentDepsT]):
 
     Tiers are driven directly, so their own triggers are bypassed; the loop
     re-measures text plus images after each tier and stops at ``target_tokens``.
-    Afterwards the original system prompt and opening user prompt are restored
-    exactly once, and images outside the retention policy are dropped.
+    Each tier restores the opening prompts before measuring reclaimed context.
+    The result also applies the image retention policy.
     """
 
     tiers: Sequence[CompactionStrategy[AgentDepsT]]
@@ -423,10 +423,15 @@ class ImageAwareCompaction(AbstractCapability[AgentDepsT]):
         self, messages: list[ModelMessage], ctx: RunContext[AgentDepsT]
     ) -> list[ModelMessage]:
         original = messages
+        remaining = estimate_request_tokens(messages, self.tokenizer)
         for tier in self.tiers:
-            if estimate_request_tokens(messages, self.tokenizer) <= self.target_tokens:
+            if remaining <= self.target_tokens:
                 break
-            messages = await tier.compact(messages, ctx)
+            before = _estimate_history_tokens(messages, self.tokenizer)
+            compacted = await tier.compact(messages, ctx)
+            messages = preserve_prompts(original, compacted)
+            # Provider usage describes the original request, not the trimmed history.
+            remaining += _estimate_history_tokens(messages, self.tokenizer) - before
         messages = retain_images(
             messages, retained_image_keys(messages, self.keep_pairs)
         )
@@ -438,13 +443,12 @@ class ImageAwareCompaction(AbstractCapability[AgentDepsT]):
         if estimate_request_tokens(messages, self.tokenizer) <= self.target_tokens:
             return request_context
         request_ctx = context_for_request(ctx, request_context)
-        before = estimate_request_tokens(messages, self.tokenizer)
         compacted = await self._escalate(messages, request_ctx)
         request_context.messages = compacted
         record_compaction_reclaim(
             request_context,
-            before,
-            estimate_request_tokens(compacted, self.tokenizer),
+            _estimate_history_tokens(messages, self.tokenizer),
+            _estimate_history_tokens(compacted, self.tokenizer),
         )
         return request_context
 

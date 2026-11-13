@@ -450,8 +450,12 @@ class LiberoRLPrimitives:
             points = geometry.valid_points(world[pixel[0], pixel[1]])
         else:
             if box is not None:
+                height, width = world.shape[:2]
                 row_min, col_min = max(box[0], 0), max(box[1], 0)
-                points = world[row_min : box[2], col_min : box[3]]
+                row_max, col_max = min(box[2], height), min(box[3], width)
+                if row_min >= row_max or col_min >= col_max:
+                    return _error("box has no area inside the image")
+                points = world[row_min:row_max, col_min:col_max]
             else:
                 points = world[mask]
             points = geometry.valid_points(points)

@@ -131,3 +131,13 @@ def test_runtime_paths_are_relocatable_and_explicit_values_win(
         str(expected_root / "models/sam3/sam3.pt"),
         str(expected_root / "libero-config"),
     ]
+
+
+def test_batch_help_exposes_the_concise_reasoning_prompt():
+    result = subprocess.run(
+        [sys.executable, str(SCRIPTS / "run_batch.py"), "run", "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "simple_brief" in result.stdout

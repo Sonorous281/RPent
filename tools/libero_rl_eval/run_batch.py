@@ -31,11 +31,11 @@ import threading
 import time
 from pathlib import Path
 
+from robots.libero_rl.prompt_bundle import PROMPT_VARIANTS
 from rpent.evaluation import write_json_atomic as atomic
 from rpent.evaluation.trajectory import audit_episode
 
 EVAL_DIR = Path(__file__).resolve().parent
-PROMPTS = ("simple", "base", "base_gripper", "base_gripper_camera")
 CONFIGS = ("adaptive",)
 LOCK = threading.Lock()
 STOP = threading.Event()
@@ -310,7 +310,7 @@ def main() -> None:
     collection.add_argument("--seeds", type=seed_values)
     collection.add_argument("--gpus", required=True)
     collection.add_argument("--per-gpu", type=int, default=1)
-    collection.add_argument("--prompt", choices=PROMPTS, default="simple")
+    collection.add_argument("--prompt", choices=PROMPT_VARIANTS, default="simple")
     collection.add_argument(
         "--endpoints", help="Comma-separated local OpenAI base URLs"
     )

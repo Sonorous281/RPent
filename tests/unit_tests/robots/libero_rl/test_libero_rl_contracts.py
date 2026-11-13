@@ -571,3 +571,10 @@ def test_runtime_reports_a_server_that_exits_before_announcing(tmp_path):
         robot_spec._spawn_server(
             argparse.Namespace(cuda_device=None), tmp_path, "env", script, []
         )
+
+
+@pytest.mark.parametrize("box", [[0, 0, -1, -1], [10, 10, 5, 5], [32, 0, 40, 20]])
+def test_back_project_rejects_boxes_without_image_overlap(tmp_path, box):
+    toolkit = make_toolkit(tmp_path, "adaptive")
+    result = toolkit.execute_tool("back_project", {"box": box, "step": 0}).data
+    assert result == {"error": "box has no area inside the image"}

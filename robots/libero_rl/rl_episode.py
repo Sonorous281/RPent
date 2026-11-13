@@ -41,6 +41,7 @@ from robots.libero_rl.robot_spec import get_robot_spec, get_toolkit
 from rpent.dashboard.events import NullDashboardEventSink
 from rpent.evaluation.rl_episode import (
     EXIT_SETUP_FAILED,
+    capture_episode,
     episode_outcome,
     solve,
     token_counter,
@@ -158,13 +159,16 @@ def run(args: argparse.Namespace) -> int:
     args.observation_mode = options.pop("observation_mode", args.observation_mode)
     args.prompt = options.pop("prompt", args.prompt)
     init_output_dir(args.output_dir)
-    with contextlib.ExitStack() as release:
+    with contextlib.ExitStack() as capture, contextlib.ExitStack() as release:
         try:
             toolkit, config = start_environment(args, task, release)
         except Exception:
             logger.exception("the episode environment did not start")
             return EXIT_SETUP_FAILED
         system_prompt, user_message = render_prompts(config)
+        captured_results = capture.enter_context(
+            capture_episode(toolkit, instruction=user_message, config=request)
+        )
         count_tokens = (
             token_counter(args.tokenizer_path) if args.tokenizer_path else None
         )
@@ -184,6 +188,7 @@ def run(args: argparse.Namespace) -> int:
                 max_turns=max_turns,
             )
         )
+        captured_results.append(result)
         write_transcript(args.output_dir, result)
         outcome = {
             **episode_outcome(result, toolkit, max_turns),

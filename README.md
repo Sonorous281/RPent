@@ -47,6 +47,7 @@ RPent is built for four kinds of users:
 
 ## What's NEW!
 
+- [2026/11] 🔥 Added the data flywheel. Supervised fine-tuning of the VLA on successful trajectories collected with the flywheel raised RPent's task success rate on RoboTwin from 48% to 72%, a gain of **24 percentage points**. See the [user guide](https://rpent.readthedocs.io/en/latest/rst_source/guides/flywheel.html).
 - [2026/10] 🔥 Added an optional APXInf VLA endpoint. See the [deployment guide](https://rpent.readthedocs.io/en/latest/rst_source/guides/advanced_deployment.html#apxinf-vla-service-optional).
 - [2026/09] 🔥 Added the interactive RPent Leaderboard for LIBERO, LIBERO-PRO, RoboCasa365, and RoboTwin, with model comparisons and suite-level results. Explore the [Leaderboard](https://rpent.readthedocs.io/en/latest/rst_source/leaderboard/index.html).
 - [2026/09] 🔥 RPent supports Franka single-arm and dual-arm real-robot extensions. Doc: [Franka](https://rpent.readthedocs.io/en/latest/rst_source/real_world_robots/franka.html) · [Dual Franka](https://rpent.readthedocs.io/en/latest/rst_source/real_world_robots/dual_franka.html).
@@ -87,7 +88,8 @@ RPent is built for four kinds of users:
           <li><b>WAM</b></li>
           <ul>
             <li>DreamZero</li>
-            <li>Cosmos Policy</li>
+            <li><a href="docs/source-en/rst_source/development/add_action_model.rst">Cosmos Policy</a> (LIBERO / LIBERO-Pro)</li>
+            <li><a href="docs/source-en/rst_source/development/add_action_model.rst">Fast-WAM</a> (LIBERO / LIBERO-Pro / RoboTwin)</li>
           </ul>
         </ul>
       </td>
@@ -178,7 +180,8 @@ export LIBERO_TYPE=pro
 # Run one task: libero_object_swap, task 2, seed 0, using Claude Code
 # with Claude Opus 4.8.
 rpent --robot libero --suite libero_object_swap --task 2 --seed 0 \
-  --cuda-device 0 --planner claude_code --model claude-opus-4-8
+  --env-cuda-device 0 --am-cuda-device 0 --sam3-cuda-device 0 \
+  --planner claude_code --model claude-opus-4-8
 ```
 
 See the [planner docs](https://rpent.readthedocs.io/en/latest/rst_source/guides/configure_planner.html) to configure other planners (`api`, `codex`) and model providers.

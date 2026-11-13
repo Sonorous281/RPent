@@ -132,27 +132,6 @@ class QwenChatModel(OpenAIChatModel):
     it for a new user query and keeps the reasoning of every earlier turn.
     """
 
-    request_trace = None
-
-    async def _completions_create(
-        self, messages, stream, model_settings, model_request_parameters
-    ):
-        """Keep the post-compaction native request beside the exact HTTP payload."""
-        trace = self.request_trace
-        if trace is None:
-            return await super()._completions_create(
-                messages, stream, model_settings, model_request_parameters
-            )
-        from rpent.planner.request_trace import reset_native
-
-        token = trace.native(messages, model_settings, model_request_parameters)
-        try:
-            return await super()._completions_create(
-                messages, stream, model_settings, model_request_parameters
-            )
-        finally:
-            reset_native(token)
-
     async def _map_user_message(self, message: ModelRequest) -> AsyncIterator[Any]:
         mapped = [item async for item in super()._map_user_message(message)]
         if mapped and mapped[-1].get("role") == "user" and _carries_tool_files(message):

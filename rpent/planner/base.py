@@ -96,9 +96,21 @@ async def execute_tool(toolkit: Toolkit, name: str, arguments: dict) -> ToolResu
 
 
 class PlannerResult:
-    """Result returned by a planner invocation."""
+    """Result returned by a planner invocation.
 
-    __slots__ = ("finish_result", "messages", "stats", "error", "error_kind")
+    ``stop_reason`` optionally describes why planning ended, independently
+    of environment success. For example, reaching a request limit can stop
+    planning without setting ``error``.
+    """
+
+    __slots__ = (
+        "finish_result",
+        "messages",
+        "stats",
+        "error",
+        "stop_reason",
+        "error_kind",
+    )
 
     def __init__(
         self,
@@ -108,6 +120,7 @@ class PlannerResult:
         stats: dict | None = None,
         error: str | None = None,
         error_kind: str | None = None,
+        stop_reason: str | None = None,
     ):
         """Initialize a serializable planner result."""
         self.finish_result = (
@@ -119,6 +132,8 @@ class PlannerResult:
         )  # {"total_input_tokens", "total_output_tokens", "turns_used", "tool_calls"}
         self.error = error  # str | None  — set when the planner raises
         self.error_kind = error_kind
+
+        self.stop_reason = stop_reason
 
 
 def is_recoverable_agent_error(agent_error: str | None) -> bool:
@@ -176,7 +191,6 @@ def build_api_model(
     base_url: str | None = None,
     *,
     strict_tool_definitions: bool = True,
-    request_trace_dir: str | Path | None = None,
 ) -> "Model":
     """Resolve the pydantic-ai model used by the API planner.
 
@@ -211,31 +225,15 @@ def build_api_model(
     from pydantic_ai.models import infer_model
     from pydantic_ai.providers import infer_provider, infer_provider_class
 
-    trace = None
-    if request_trace_dir is not None:
-        import httpx
-
-        from rpent.planner.request_trace import RequestTrace, TraceTransport
-
-        trace = RequestTrace(request_trace_dir)
-
     def _provider_factory(provider_name: str):
         """Build the provider for ``provider_name``."""
-        if not base_url and trace is None:
+        if not base_url:
             return infer_provider(provider_name)
         provider_cls = infer_provider_class(provider_name)
         params = inspect.signature(provider_cls.__init__).parameters
         kwargs = {}
         if "base_url" in params:
             kwargs["base_url"] = base_url
-        if trace is not None:
-            if "http_client" not in params:
-                raise ValueError(
-                    "request recording requires an HTTP-compatible provider"
-                )
-            kwargs["http_client"] = httpx.AsyncClient(
-                transport=TraceTransport(trace), timeout=httpx.Timeout(14400.0)
-            )
         return provider_cls(**kwargs)
 
     resolved = _as_qwen_chat_model(
@@ -243,14 +241,6 @@ def build_api_model(
     )
     if not strict_tool_definitions:
         resolved = _without_strict_tool_definitions(resolved)
-    if trace is not None:
-        from rpent.planner.qwen import QwenChatModel
-
-        if not isinstance(resolved, QwenChatModel):
-            raise ValueError(
-                "native request recording currently requires a Qwen chat model"
-            )
-        resolved.request_trace = trace
     return resolved
 
 
@@ -334,12 +324,8 @@ def build_planner(
     if planner_type == "api":
         from rpent.planner.api_loop import ApiAgentLoop, sliding_window_compaction
 
-        recording = os.environ.get("RPENT_RECORD_MODEL_REQUESTS") == "1"
-        extra = (
-            {"request_trace_dir": Path(output_dir) / "api_trace"} if recording else {}
-        )
         api_model = build_api_model(
-            model, base_url, strict_tool_definitions=strict_tool_definitions, **extra
+            model, base_url, strict_tool_definitions=strict_tool_definitions
         )
         api_timeout_s = planner_timeout_s
         if api_timeout_s is None:

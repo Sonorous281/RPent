@@ -64,7 +64,8 @@ class RobotSpec:
         [argparse.Namespace, Path, DashboardEventSink, set[str] | None],
         tuple[list["ProcessDaemon"], dict[str, Any]],
     ]
-    dashboard: DashboardSpec | None = None
+    #: Resolve Dashboard configuration from session options; None disables it.
+    resolve_dashboard: Callable[[argparse.Namespace], DashboardSpec] | None = None
     #: Physical scene restoration requires operator involvement, not simulator reset.
     #: Operator input requires an exclusive terminal unless an external ENV owns it.
     is_real_robot: bool = False
@@ -93,3 +94,8 @@ class RobotSpec:
     #: Takes the toolkit, the cell tag, and a note sink; returns at least
     #: ``{"done": bool}``. Left unset by robots without Flash Mode.
     run_flash: Callable[[Any, str, Callable[[str], None]], dict[str, Any]] | None = None
+    #: Native trajectory layouts and training export settings; None if unsupported.
+    #: layouts maps each action format to its paired state and action field layouts.
+    #: Fields are ordered, with key paths relative to payload data. raw_dtype applies
+    #: to native values; dtype_from selects an earlier field's dtype by index.
+    flywheel: dict[str, Any] | None = None

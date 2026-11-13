@@ -106,14 +106,16 @@ contains:
 * ``states.json``: measured states and native ``terminated`` flags;
 * ``transcript_*.json``: native messages with thinking and tool calls;
 * ``rollout.json``, ``episode.mp4`` and camera/state artifacts;
-* ``api_trace/``: post-compaction native messages, actual HTTP request payloads,
-  original PNG bytes with SHA-256, complete wire responses, stream metadata
-  and compaction events.
+* ``trajectories/<task_id>/``: the task outcome, planner requests and responses,
+  tool calls, executed actions, observations and their attachments.
 
-A clean exit proves neither task success nor a complete training record.
-``rpent.evaluation.trajectory.audit_episode`` checks response completion,
-wire/native agreement, native success and optionally every saved image hash.
-The batch launcher applies these checks before publishing an episode.
+The launcher enables RPent's shared trajectory recorder. Planner records contain
+Pydantic AI inputs after history compaction and the corresponding responses;
+these are SDK records, not raw HTTP payloads. Task metadata and linked records use schema version 5.
+The audit requires one completed task, a usable response for every planner turn,
+readable attachments and agreement with native success before the batch launcher
+publishes the episode. Historical ``api_trace/`` episodes remain readable with
+their original wire-response and checksum checks.
 
 Collect Tasks and Seeds
 -----------------------
@@ -187,7 +189,7 @@ Earlier thinking is preserved in ``reasoning_content`` and rendered by the
 model's own chat template. RPent wraps tool-image user messages with
 ``<tool_response>`` tags so Qwen3.5 retains earlier thinking. Qwen3.8 also uses
 ``preserve_thinking=true``. Only context management intentionally changes the
-visible history; the actual resulting request is retained in ``api_trace``.
+visible history; the resulting SDK request is retained in the trajectory.
 A reply ending at the output-token limit remains an incomplete training
 output and fails the trajectory audit.
 

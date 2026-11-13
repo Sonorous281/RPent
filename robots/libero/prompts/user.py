@@ -51,3 +51,10 @@ NO_MEMORY_BEGIN = (
     'Call `view_env_state({"step": 0})`, read `task_language`, then use the '
     "images and available tools to complete it."
 )
+
+WAM_MEMORY = "Local memory directory: {{memory_dir}}."
+
+WAM_BEGIN = (
+    "Call view_env_state at step 0, inspect the task and camera "
+    "images, and use wam_act to begin."
+)

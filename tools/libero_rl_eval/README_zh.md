@@ -213,8 +213,7 @@ python tools/libero_rl_eval/run_batch.py run "$RPENT_DATA_ROOT/rollouts/new-run"
 | `--episode-timeout` | `14400` 秒 | 单条轨迹的外层进程超时 |
 | `--infrastructure-retries` | `1` | 每次启动中，错误或审计失败后的额外尝试数 |
 
-每个任务独立保存 `attempt-NNN`。审计会检查 native success、完整 HTTP/原生响应、
-工具调用和 PNG SHA-256，通过后写入 `COMPLETED.json` 并原子更新
+每个任务独立保存 `attempt-NNN`。审计会检查 native success、完整 SDK 请求与响应及附件可读性，通过后写入 `COMPLETED.json` 并原子更新
 `valid-index.json`。正常完成但没有成功的任务仍是有效数据；异常尝试保留
 `INVALID.json`，中断尝试保留 `INTERRUPTED.json`。
 
@@ -227,10 +226,11 @@ SIGINT/SIGTERM 会终止本批次拥有的轨迹进程组并保留所有尝试�
 python tools/libero_rl_eval/run_batch.py summary "$RPENT_DATA_ROOT/rollouts/new-run"
 ```
 
-单条轨迹包含 `result.json`、`states.json`、transcript、视频和 `api_trace/`。
-Trace 保存压缩后实际请求、原始 PNG 字节、原生消息、完整流式响应和压缩事件。
-通用读取模块为 `rpent.evaluation.trajectory`，数据编码及 SFT 入口位于
-`ms-swift/examples/rpent`。
+单条轨迹包含 `result.json`、`states.json`、transcript、视频和 `trajectories/<task_id>/`。
+共用记录器按 schema version 5 保存任务结果、压缩后的 SDK 请求与响应、工具调用、
+已执行动作、观测和附件，这些是 SDK 层记录，不是原始 HTTP 报文。`rpent.evaluation.trajectory`
+也可读取历史 `api_trace/`；报文和 SHA-256 校验只适用于旧格式。
+数据导出工具须支持 schema version 5，才能使用这些轨迹。
 
 ## 离线安装
 

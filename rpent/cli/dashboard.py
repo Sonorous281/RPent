@@ -23,6 +23,7 @@ import shlex
 import sys
 import threading
 import time
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -36,6 +37,7 @@ from rpent.evaluation import RunFinalizationContext
 from rpent.memory import MemoryManager
 from rpent.planner.base import build_planner, is_recoverable_agent_error
 from rpent.robots import get_toolkit
+from rpent.session.planner_capture import end_planner_task, start_planner_task
 from rpent.utils.config import get_memory_dir
 from rpent.utils.logging import get_logger, init_output_dir
 
@@ -54,9 +56,15 @@ def run_dashboard_session(
     parser: argparse.ArgumentParser,
 ) -> int:
     """Run one long-lived Dashboard Session with sequential fresh TaskRuns."""
+    if robot_spec.resolve_dashboard is None:
+        parser.error(f"robot {robot_spec.name!r} does not support Dashboard control")
+    try:
+        dashboard_spec = robot_spec.resolve_dashboard(args)
+    except ValueError as exc:
+        parser.error(str(exc))
     if (
         robot_spec.is_real_robot
-        and not (robot_spec.dashboard or {}).get("external_env", False)
+        and not dashboard_spec.get("external_env", False)
         and not robot_spec.supports_human_interactive_exploration
     ):
         parser.error(
@@ -67,9 +75,6 @@ def run_dashboard_session(
     from rpent.dashboard.state import DashboardState
     from rpent.utils.config import get_repo_root
 
-    dashboard_spec = robot_spec.dashboard
-    if dashboard_spec is None:
-        parser.error(f"robot {robot_spec.name!r} does not support Dashboard control")
     runtime_components = tuple(
         component
         for component in dashboard_spec["runtime_components"]
@@ -219,6 +224,7 @@ def _run_dashboard_task(
     solved = False
     memory_manager = None
     environment_success = None
+    environment_metrics: dict = {}
     try:
         task_daemons, task_runtime_kwargs = robot_spec.init_runtime(
             task_args,
@@ -247,6 +253,7 @@ def _run_dashboard_task(
                     or state.task_finalization_cancelled
                 ):
                     break
+                environment_success, environment_metrics = None, {}
                 if session_number > 1:
                     logger.info(
                         "=== handing off to agent %d/%d ===",
@@ -307,7 +314,20 @@ def _run_dashboard_task(
                 solved = False
                 state.bind_toolkit(toolkit)
                 memory_manager = toolkit.memory
+                task_state = None
+                result = None
+                finish_result = None
+                environment_success = None
                 try:
+                    if task_args.record_trajectory and task_args.planner != "flash":
+                        task_state = start_planner_task(
+                            toolkit.state,
+                            instruction=session_message,
+                            config={
+                                "arguments": vars(task_args),
+                                "run": asdict(run_config),
+                            },
+                        )
                     planner = build_planner(
                         task_args.planner,
                         output_dir=output_dir,
@@ -340,6 +360,7 @@ def _run_dashboard_task(
                             stats["planner_error_at_operator_verdict"] = agent_error
                     if robot_spec.supports_exploration:
                         solved = bool(toolkit.solved())
+                        environment_success = solved
                         if solved:
                             recipe_path = (
                                 toolkit.write_recipe(recipe_tag) or recipe_path
@@ -348,10 +369,30 @@ def _run_dashboard_task(
                     try:
                         state.unbind_toolkit(toolkit)
                         if robot_spec.finalize_run is not None:
+                            toolkit.cancel_active_and_wait()
                             environment_success = bool(toolkit.solved())
                             solved = environment_success
+                            environment_metrics = toolkit.evaluation_metrics(
+                                success=environment_success
+                            )
                     finally:
-                        toolkit.close()
+                        try:
+                            toolkit.close()
+                        finally:
+                            end_planner_task(
+                                task_state,
+                                result,
+                                finish_result=finish_result,
+                                environment_success=environment_success,
+                                exception=sys.exc_info()[1],
+                                cancelled_reason=(
+                                    "task_replaced"
+                                    if state.task_replacement_requested
+                                    else "operator"
+                                    if state.task_finalization_cancelled
+                                    else None
+                                ),
+                            )
                 if (
                     solved
                     or state.task_replacement_requested
@@ -444,6 +485,7 @@ def _run_dashboard_task(
                     robot_name=robot_spec.name,
                     task_desc=dict(run_config.task_desc),
                     environment_success=environment_success,
+                    environment_metrics=environment_metrics,
                     agent_error=agent_error,
                     elapsed_s=time.time() - started,
                     planner=args.planner,

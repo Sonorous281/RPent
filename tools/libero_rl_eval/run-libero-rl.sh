@@ -23,4 +23,5 @@ exec rpent --robot libero_rl --libero-type pro \
   --max-turns "${RPENT_MAX_TURNS:-100}" \
   --max-episode-steps "${RPENT_MAX_EPISODE_STEPS:-10000}" \
   --planner-timeout-s "${RPENT_PLANNER_TIMEOUT_S:-7200}" \
+  --record-trajectory \
   --output-dir "$output" "$@"

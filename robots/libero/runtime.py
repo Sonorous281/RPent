@@ -22,7 +22,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from rpent.utils.config import get_repo_root
+from robots.libero.suites import resolve_libero_type
+from rpent.utils.config import get_repo_root, resolve_cuda_device
 from rpent.utils.daemon import ProcessDaemon
 from rpent.utils.rpc import make_rpc_client, wait_for_endpoint
 
@@ -38,7 +39,7 @@ def spawn_env_server(
     if args.env_endpoint is not None:
         return None, make_rpc_client(args.env_endpoint)
 
-    from rpent.utils.config import get_libero_type
+    device = resolve_cuda_device(args, "env")
 
     log = output_dir / "env_server.log"
     log.unlink(missing_ok=True)
@@ -63,14 +64,10 @@ def spawn_env_server(
             "--port",
             "0",
             "--parent-watch",
-            *(
-                ["--cuda-device", str(args.cuda_device)]
-                if args.cuda_device is not None
-                else []
-            ),
+            *(["--cuda-device", str(device)] if device is not None else []),
         ],
         env_overrides={
-            "LIBERO_TYPE": args.libero_type or get_libero_type(),
+            "LIBERO_TYPE": resolve_libero_type(args.suite, args.libero_type),
             "MUJOCO_GL": os.environ.get("MUJOCO_GL", "egl"),
             "ROBOT_PLATFORM": "LIBERO",
         },

@@ -89,7 +89,9 @@ def build_env_cfg(
                 # Render depth too, so we can back-project pixels to world
                 # from depth + camera calibration
                 "camera_depths": True,
-                # RLinf counts policy steps separately from reset settling.
+                "horizon": max_episode_steps,
+                # RLinf counts policy steps after reset settling and owns truncation.
+                # LIBERO replaces robosuite's done flag with task success.
                 "ignore_done": True,
                 **(
                     {"robots": [os.environ["LIBERO_ROBOT_BASE"]]}

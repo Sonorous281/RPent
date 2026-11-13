@@ -229,7 +229,7 @@ load; the model-service concurrency is a separate limit.
 | `--infrastructure-retries` | `1` | Additional attempts after an error/audit failure per invocation |
 
 Each job keeps independent `attempt-NNN` directories. The audit checks native
-success, complete HTTP/native responses, tools and PNG SHA-256 before writing
+success, complete SDK requests/responses and readable attachments before writing
 `COMPLETED.json` and atomically updating `valid-index.json`. A normally completed
 unsuccessful task remains valid data. Invalid attempts retain `INVALID.json`;
 stopped attempts retain `INTERRUPTED.json`.
@@ -245,10 +245,12 @@ python tools/libero_rl_eval/run_batch.py summary "$RPENT_DATA_ROOT/rollouts/new-
 ```
 
 Episode artifacts include `result.json`, `states.json`, transcripts, video and
-`api_trace/`. The trace retains actual post-compaction requests, original PNG
-bytes, native messages, complete streaming responses and compaction events.
-The shared reader is `rpent.evaluation.trajectory`; dataset encoding and SFT
-belong to `ms-swift/examples/rpent`.
+`trajectories/<task_id>/`. The shared recorder stores the task outcome,
+post-compaction SDK requests/responses, tool calls, actions, observations and
+attachments using schema version 5. These are SDK records, not raw HTTP captures. The shared
+reader in `rpent.evaluation.trajectory` also accepts historical `api_trace/` data;
+its wire-response and SHA-256 checks apply only to that older format. Dataset
+exporters must support schema version 5 to use these trajectories.
 
 ## Offline installation
 

@@ -23,7 +23,7 @@ import asyncio
 import json
 import threading
 from collections.abc import AsyncIterator, Callable, Sequence
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from functools import partial
 from typing import Any
 from uuid import uuid4
@@ -77,9 +77,12 @@ from rpent.planner.base import (
     REASONING_EFFORTS,
     Planner,
     PlannerResult,
+    _wait_for_cleanup,
     cancel_and_wait,
     execute_tool,
 )
+from rpent.session.env_capture import current_tool_call
+from rpent.session.planner_capture import CapturingModel, sdk_payload
 from rpent.tools.toolkit import Toolkit, ToolResult
 from rpent.utils.logging import get_logger
 from rpent.utils.templates import substitute
@@ -231,10 +234,20 @@ class ApiAgentLoop(Planner):
         if self.interactive and dashboard_interaction is not None:
             raise ValueError("clai and Dashboard cannot run together")
         conversation_id = uuid4().hex
+        try:
+            state = toolkit.state
+        except RuntimeError:
+            state = None
+        capture = (
+            CapturingModel(self.model, state, conversation_id)
+            if state is not None and state.get_task() is not None
+            else None
+        )
         adapter = _HarnessToolkit(
             toolkit,
             dashboard_events=self.dashboard_events,
             no_images=self.no_images,
+            capture=capture,
             sequential_tools=self.sequential_tools,
         )
         prompt = _opening_prompt(
@@ -246,17 +259,8 @@ class ApiAgentLoop(Planner):
             max_turns,
             interactive=self.interactive,
         )
-        trace = getattr(self.model, "request_trace", None)
-        session.request_trace = trace
-        compaction_factory = self.compaction
-        if trace is not None and compaction_factory is not None:
-            from functools import partial
-
-            from rpent.planner.request_trace import traced_compaction
-
-            compaction_factory = partial(traced_compaction, compaction_factory, trace)
         agent = Agent(
-            self.model,
+            capture if capture is not None else self.model,
             name="rpent_api",
             system_prompt=system_prompt,
             output_type=adapter.output_types,
@@ -275,7 +279,7 @@ class ApiAgentLoop(Planner):
                 parallel_tool_calls=not self.sequential_tools,
             ),
             capabilities=[
-                *([compaction_factory()] if compaction_factory is not None else []),
+                *([self.compaction()] if self.compaction is not None else []),
                 Thinking(self._thinking_level()),
                 session,
             ],
@@ -297,6 +301,7 @@ class ApiAgentLoop(Planner):
                 timeout=None if self.interactive else self.timeout_s,
             )
         except _RequestBudgetExhausted as exc:
+            session.stop_reason = "request_limit"
             session.error = None
             logger.info("%s", exc)
         except Exception as exc:
@@ -304,6 +309,7 @@ class ApiAgentLoop(Planner):
                 # wait_for cancels this task only when its own deadline expires.
                 session.error = f"planner timed out after {self.timeout_s:g}s"
                 session.error_kind = "episode_timeout"
+                session.stop_reason = "timeout"
             elif isinstance(exc, UnexpectedModelBehavior) and _is_response_truncation(
                 exc
             ):
@@ -326,6 +332,7 @@ class ApiAgentLoop(Planner):
             },
             error=session.error,
             error_kind=session.error_kind,
+            stop_reason=session.stop_reason,
         )
 
 
@@ -449,11 +456,13 @@ class _HarnessToolkit(FunctionToolset):
         dashboard_events: DashboardEventSink,
         no_images: bool,
         sequential_tools: bool = False,
+        capture: CapturingModel | None = None,
     ) -> None:
         super().__init__(id="rpent")
         self.toolkit = toolkit
         self.dashboard_events = dashboard_events
         self.no_images = no_images
+        self.capture = capture
         self.finish_result: dict[str, Any] | None = None
         self.tool_calls = 0
         self.messages: list[dict[str, Any]] = []
@@ -481,11 +490,14 @@ class _HarnessToolkit(FunctionToolset):
                 async def finish(
                     ctx: RunContext, arguments: FinishArguments
                 ) -> dict[str, Any]:
-                    result = await self.execute("finish", arguments, ctx)
-                    if not result.data.get("_finish"):
-                        raise ModelRetry(self._text(result))
-                    self.finish_result = result.to_dict()
-                    return self.finish_result
+                    with self.capture.tool(ctx) if self.capture else nullcontext():
+                        result = await self.execute("finish", arguments, ctx)
+                        if not result.data.get("_finish"):
+                            raise ModelRetry(self._text(result))
+                        self.finish_result = result.to_dict()
+                        if self.capture is not None:
+                            self.capture.feedback(ctx, "json", self.finish_result)
+                        return self.finish_result
 
                 self.output_types.append(
                     ToolOutput(
@@ -508,13 +520,26 @@ class _HarnessToolkit(FunctionToolset):
         self, ctx: RunContext, name: str, step: int = -1
     ) -> ToolReturn:
         """Read a saved image by artifact filename and step (-1 selects the latest)."""
-        self._record_call("read_image", {"name": name, "step": step}, ctx)
-        result = await asyncio.to_thread(self._read_image, name, step)
-        self._record_result("read_image", ctx, json.dumps(result.return_value))
-        return result
+        with self.capture.tool(ctx) if self.capture else nullcontext():
+            self._record_call("read_image", {"name": name, "step": step}, ctx)
+            worker = asyncio.create_task(
+                asyncio.to_thread(self._read_image, name, step)
+            )
+            try:
+                result = await asyncio.shield(worker)
+            except asyncio.CancelledError:
+                await _wait_for_cleanup(worker)
+                raise
+            self._record_result("read_image", ctx, json.dumps(result.return_value))
+            if self.capture is not None:
+                self.capture.feedback(ctx, "pydantic_ai.tool_return", result)
+            return result
 
     def _read_image(self, name: str, step: int) -> ToolReturn:
         """Resolve an image in the step store, returning artifact errors to the model."""
+        capture = current_tool_call.get()
+        if capture is not None:
+            capture.start()
         try:
             state = self.toolkit.state
             record = state.get(step)
@@ -527,23 +552,28 @@ class _HarnessToolkit(FunctionToolset):
                 raise ValueError(f"artifact {name!r} is not an image")
             metadata = {"artifact": name, "step": record.step_idx}
             if self.no_images:
-                return ToolReturn(
+                result = ToolReturn(
                     return_value={
                         **metadata,
                         "notice": "Image omitted: --no-images is enabled.",
                     }
                 )
-            image = BinaryContent(
-                data=state.load_bytes(name, step=record.step_idx),
-                media_type=(
-                    "image/jpeg"
-                    if path.suffix.lower() in {".jpg", ".jpeg"}
-                    else "image/png"
-                ),
-            )
+            else:
+                image = BinaryContent(
+                    data=state.load_bytes(name, step=record.step_idx),
+                    media_type=(
+                        "image/jpeg"
+                        if path.suffix.lower() in {".jpg", ".jpeg"}
+                        else "image/png"
+                    ),
+                )
+                result = ToolReturn(return_value=metadata, content=[image])
         except Exception as exc:
-            return ToolReturn(return_value={"error": str(exc)})
-        return ToolReturn(return_value=metadata, content=[image])
+            result = ToolReturn(return_value={"error": str(exc)})
+        if capture is not None:
+            capture.result(sdk_payload("pydantic_ai.tool_return", result))
+            capture.finish("failed" if "error" in result.return_value else "completed")
+        return result
 
     async def execute(
         self, name: str, arguments: dict[str, Any], ctx: RunContext
@@ -596,15 +626,19 @@ class _HarnessToolkit(FunctionToolset):
 
     async def call(self, name: str, ctx: RunContext, /, **arguments: Any) -> ToolReturn:
         """Return native multimodal content for an ordinary tool."""
-        result = await self.execute(name, arguments, ctx)
-        content: list[str | BinaryContent] = [result.to_text()]
-        for image in result.images:
-            content.append(
-                "[Image omitted: --no-images is enabled.]"
-                if self.no_images
-                else BinaryContent(data=image, media_type="image/png")
-            )
-        return ToolReturn(return_value=content)
+        with self.capture.tool(ctx) if self.capture else nullcontext():
+            result = await self.execute(name, arguments, ctx)
+            content: list[str | BinaryContent] = [result.to_text()]
+            for image in result.images:
+                content.append(
+                    "[Image omitted: --no-images is enabled.]"
+                    if self.no_images
+                    else BinaryContent(data=image, media_type="image/png")
+                )
+            result = ToolReturn(return_value=content)
+            if self.capture is not None:
+                self.capture.feedback(ctx, "pydantic_ai.tool_return", result)
+            return result
 
     def cancel_active_and_wait(self) -> None:
         """Stop admitting tools before requesting physical cancellation."""
@@ -624,8 +658,6 @@ class _Session(AbstractCapability):
     native run only for a follow-up after completion or interruption.
     """
 
-    request_trace = None
-
     def __init__(
         self,
         toolkit: _HarnessToolkit,
@@ -641,6 +673,8 @@ class _Session(AbstractCapability):
         self.interactive = interactive
         self.error: str | None = None
         self.error_kind: str | None = None
+
+        self.stop_reason = "model_output"
         self.control: DashboardPlannerControl | None = None
         self.inbox: asyncio.Queue[DashboardMessage] = asyncio.Queue()
         self.enqueued: dict[str, DashboardMessage] = {}
@@ -662,12 +696,21 @@ class _Session(AbstractCapability):
         try:
             result = await handler()
             self.error = None
+            self.stop_reason = (
+                "finish" if self.toolkit.finish_result is not None else "model_output"
+            )
             return result
         except _RequestBudgetExhausted:
             # The native CLI catches run exceptions before solve_async can see them.
+            self.stop_reason = "request_limit"
+            self.error = None
+            raise
+        except RunCancelled:
+            self.stop_reason = "cancelled"
             self.error = None
             raise
         except Exception as exc:
+            self.stop_reason = "planner_error"
             self.error_kind = None
             if isinstance(exc, APIConnectionError) or (
                 isinstance(exc, ModelAPIError)
@@ -704,6 +747,10 @@ class _Session(AbstractCapability):
             # replacing the SDK's counters, including failed/interrupted runs.
             self.usage.incr(ctx.usage)
             self.emit_usage()
+            if self.toolkit.capture is not None:
+                self.toolkit.capture.settle(
+                    ctx.run_id, "SDK run ended before dispatch."
+                )
 
     async def before_model_request(
         self, ctx: RunContext, request_context: ModelRequestContext
@@ -716,6 +763,8 @@ class _Session(AbstractCapability):
             if self.interactive:
                 message += " Use /exit to close the session."
             raise _RequestBudgetExhausted(message) from None
+        if self.toolkit.capture is not None:
+            self.toolkit.capture.before_request(ctx)
         return request_context
 
     async def after_tool_validate(
@@ -753,8 +802,6 @@ class _Session(AbstractCapability):
         self, ctx: RunContext, *, node: AgentNode, result: NodeResult
     ) -> NodeResult:
         if isinstance(node, ModelRequestNode) and isinstance(result, CallToolsNode):
-            if self.request_trace is not None:
-                self.request_trace.response(result.model_response)
             # Retain completed turns even when request history is later compacted.
             content: list[dict[str, Any]] = []
             for part in result.model_response.parts:
@@ -779,6 +826,12 @@ class _Session(AbstractCapability):
                         }
                     )
             self.toolkit.messages.append({"role": "assistant", "content": content})
+        if isinstance(node, CallToolsNode) and self.toolkit.capture is not None:
+            self.toolkit.capture.settle(
+                ctx.run_id,
+                "SDK rejected the call or skipped it after final output.",
+                ctx.run_step,
+            )
         if isinstance(node, (ModelRequestNode, CallToolsNode)):
             self.emit_usage(self.usage + ctx.usage)
         return result
@@ -918,6 +971,7 @@ class _Session(AbstractCapability):
                     cancellation_token=self.cancellation,
                 )
             except RunCancelled:
+                self.stop_reason = "cancelled"
                 self.error = None
             finally:
                 self.cancellation = None

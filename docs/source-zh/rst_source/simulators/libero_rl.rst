@@ -82,10 +82,9 @@ LIBERO RL 轨迹采集
 * ``states.json``：测量状态和原生 ``terminated`` 标志；
 * ``transcript_*.json``：包含 thinking 和工具调用的原生消息；
 * ``rollout.json``、``episode.mp4`` 及相机和状态文件；
-* ``api_trace/``：压缩后的原生消息、实际 HTTP 请求、带 SHA-256 的原始 PNG、
-  完整网络响应、流式元数据和压缩事件。
+* ``trajectories/<task_id>/``：任务结果、规划器请求与响应、工具调用、已执行动作、观测及附件。
 
-进程正常退出不能证明任务成功，也不能证明训练记录完整。``rpent.evaluation.trajectory.audit_episode`` 检查响应完整性、网络响应与原生消息一致性、native success，并可校验所有图片哈希。批量入口通过审计后才发布该条轨迹。
+启动器默认开启 RPent 共用的轨迹记录器。规划器记录包含历史压缩后的 Pydantic AI 输入及对应响应，记录的是 SDK 调用，不是原始 HTTP 报文。任务元数据和关联记录使用 schema version 5。批量入口发布轨迹前，会检查任务正常结束、每轮响应完整可用、附件可读，以及记录的成功状态与原生环境一致。历史 ``api_trace/`` 仍可读取，并沿用原来的报文与摘要校验。
 
 批量采集任务和 Seed
 -------------------
@@ -136,7 +135,7 @@ summary 会重新审计已封存的轨迹，报告有效数量和原生成功数
    * - ``RPENT_PRESENCE_PENALTY`` / ``RPENT_REPETITION_PENALTY``
      - 未设置，可显式覆盖采样参数
 
-历史 thinking 通过 ``reasoning_content`` 保留，并由模型自身的 chat template 渲染。RPent 用 ``<tool_response>`` 标签包裹工具图片的 user 消息，让 Qwen3.5 保留此前的 thinking；Qwen3.8 还会设置 ``preserve_thinking=true``。上下文管理会主动改变可见历史，最终实际请求保存在 ``api_trace`` 中。达到输出 token 上限的回答属于不完整训练输出，无法通过轨迹审计。
+历史 thinking 通过 ``reasoning_content`` 保留，并由模型自身的 chat template 渲染。RPent 用 ``<tool_response>`` 标签包裹工具图片的 user 消息，让 Qwen3.5 保留此前的 thinking；Qwen3.8 还会设置 ``preserve_thinking=true``。上下文管理会主动改变可见历史，最终压缩后的 SDK 请求保存在轨迹中。达到输出 token 上限的回答属于不完整训练输出，无法通过轨迹审计。
 
 Prompt 定义位于 ``robots/libero_rl/prompt_bundle.py``：``simple`` 包含工具契约；``simple_brief`` 另外要求每次决策尽量不超过 256 个推理 token，这是提示词指导，不是解码器硬上限；``base`` 增加机器人坐标系和执行方法；``base_gripper`` 增加手指几何；``base_gripper_camera`` 进一步增加相机几何。
 

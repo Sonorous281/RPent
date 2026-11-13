@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-"""Read lossless RPent traces without importing model or simulator packages."""
+"""Audit canonical SDK trajectories and read historical wire traces."""
 
 from __future__ import annotations
 
@@ -158,12 +158,80 @@ def audit_episode(
     native_success = bool(states and states[-1]["terminated"])
     if bool(result["success"]) != native_success:
         raise ValueError(f"result/native success mismatch: {episode}")
-    turns = complete_turns(episode)
+    canonical = episode / "trajectories"
+    if canonical.is_dir():
+        turns = _planner_turns(canonical, native_success, verify_assets)
+    else:
+        # Historical runs used the wire recorder; new runs use EnvState capture.
+        turns = complete_turns(episode)
     if not turns or len(turns) != result["stats"]["turns_used"]:
         raise ValueError(
             f"completed turn coverage {len(turns)} != {result['stats']['turns_used']}"
         )
-    if verify_assets:
+    if verify_assets and not canonical.is_dir():
         for d, _, _ in turns:
             restore(json.loads((d / "request.json").read_text()), episode / "api_trace")
     return result, turns
+
+
+def _planner_turns(root: Path, native_success: bool, verify_assets: bool) -> list:
+    tasks = list(root.glob("*/task.json"))
+    if len(tasks) != 1:
+        raise ValueError(f"Expected one captured task, found {len(tasks)}: {root}")
+    task_path = tasks[0]
+    document = json.loads(task_path.read_text())
+    task = document["task"]
+    outcome = task["result"]["data"]
+    if document["schema_version"] != 5 or task["status"] != "completed":
+        raise ValueError(f"Incomplete task capture: {task_path}")
+    if outcome["environment_success"] != native_success or outcome.get("error"):
+        raise ValueError(f"Captured/native success mismatch: {task_path}")
+    turns = []
+    for line in (task_path.parent / "planners.jsonl").read_text().splitlines():
+        record = json.loads(line)
+        if record["status"] != "completed" or record.get("missing"):
+            raise ValueError(f"Incomplete planner capture: {record['planner_id']}")
+        for key in ("request", "response"):
+            payload = record[key]
+            if (
+                not payload
+                or payload["completeness"] != "complete"
+                or payload.get("missing")
+            ):
+                raise ValueError(f"Incomplete {key}: {record['planner_id']}")
+            if verify_assets:
+                _verify_attachments(payload["data"], task_path.parent)
+        response = record["response"]["data"]
+        if response.get("finish_reason") not in ("stop", "tool_call"):
+            raise ValueError(
+                f"Unusable captured finish reason: {response.get('finish_reason')}"
+            )
+        turns.append(
+            (
+                task_path.parent,
+                response,
+                {"planner_id": record["planner_id"], "capture_boundary": "pydantic_ai"},
+            )
+        )
+    return turns
+
+
+def _verify_attachments(value: Any, root: Path) -> None:
+    """Check canonical attachments; this format does not store wire checksums."""
+    if isinstance(value, dict):
+        if value.get("$type") == "artifact_ref":
+            path = (root / value["path"]).resolve()
+            if not path.is_relative_to(root.resolve()):
+                raise ValueError(f"Attachment escapes trajectory: {path}")
+            if value["kind"] == "ndarray":
+                from rpent.flywheel.reader import read_array
+
+                read_array(root, value)
+            else:
+                path.read_bytes()
+        else:
+            for item in value.values():
+                _verify_attachments(item, root)
+    elif isinstance(value, list):
+        for item in value:
+            _verify_attachments(item, root)

@@ -38,6 +38,51 @@ class ConfigCaptured(Exception):
     """Stop the CLI immediately after argument validation in routing tests."""
 
 
+@pytest.mark.parametrize("supported", [False, True])
+@pytest.mark.parametrize("real_robot", [False, True])
+def test_dashboard_uses_robot_owned_descriptor(
+    monkeypatch, tmp_path, supported, real_robot
+):
+    from argparse import ArgumentParser
+    from dataclasses import replace
+
+    from robots.libero.robot_spec import get_robot_spec
+    from rpent.cli import dashboard
+    from rpent.dashboard import state
+
+    spec = get_robot_spec()
+    descriptor = {
+        **spec.resolve_dashboard(SimpleNamespace()),
+        "external_env": real_robot,
+        "runtime_components": (
+            {"name": "custom_policy", "label": "Policy", "scope": "shared"},
+        ),
+    }
+    spec = replace(
+        spec,
+        resolve_dashboard=(lambda args: descriptor) if supported else None,
+        is_real_robot=real_robot,
+    )
+
+    def capture_state(**kwargs):
+        assert kwargs["dashboard_spec"] == descriptor
+        raise ConfigCaptured
+
+    monkeypatch.setattr(state, "DashboardState", capture_state)
+    monkeypatch.setattr(dashboard, "init_output_dir", lambda path, **kw: path)
+    args = SimpleNamespace(
+        planner="api",
+        model="test",
+        output_dir=tmp_path,
+        verbose=False,
+        env_endpoint="http://localhost:8115" if real_robot else None,
+    )
+    with pytest.raises(ConfigCaptured if supported else SystemExit) as exc:
+        dashboard.run_dashboard_session(args, spec, parser=ArgumentParser())
+    if not supported:
+        assert exc.value.code == 2
+
+
 def _cli_module():
     from rpent.cli import main as cli
 
@@ -103,11 +148,13 @@ def test_public_cli_help_runs_from_source_checkout_without_a_robot_runtime() -> 
 
     assert result.returncode == 0, result.stderr
     assert "RPent: Agentic Infrastructure for the Physical World" in result.stdout
+    assert "with api, claude_code, or codex" in " ".join(result.stdout.split())
     for option in (
         "--robot",
         "--env",
         "--planner",
         "--output-dir",
+        "--record-trajectory",
         "--dashboard",
         "--tui",
     ):
@@ -152,6 +199,7 @@ def test_shared_cli_defaults_reach_robot_config_parser(
     assert args.dashboard_port == 0
     assert args.dashboard_language == "en"
     assert args.memory_profile == "hf"
+    assert args.record_trajectory is False
 
 
 @pytest.mark.parametrize(
@@ -398,7 +446,7 @@ def test_real_robot_terminal_requirement_fails_before_runtime(
     spec = SimpleNamespace(
         is_real_robot=True,
         supports_human_interactive_exploration=False,
-        dashboard=None,
+        resolve_dashboard=None,
         add_cli_args=lambda parser, use_dashboard: None,
     )
     monkeypatch.setattr(cli, "get_robot_spec", lambda name: spec)
@@ -434,7 +482,7 @@ def test_human_operator_main_routes_dashboard_without_tty(
         is_real_robot=True,
         supports_human_interactive_exploration=True,
         supports_exploration=True,
-        dashboard={},
+        resolve_dashboard=lambda args: {},
         add_cli_args=lambda parser, use_dashboard: None,
         validate_args=None,
     )
@@ -486,13 +534,14 @@ def test_handoff_message_lists_prior_attempts_deterministically(tmp_path: Path) 
 
 
 @pytest.mark.parametrize(
-    ("interactive", "outcome"),
+    ("interactive", "outcome", "record_trajectory"),
     [
-        (False, "success"),
-        (True, "success"),
-        (False, "request_budget"),
-        (True, "request_budget"),
-        (False, "response_truncated"),
+        (False, "success", True),
+        (True, "success", True),
+        (False, "request_budget", False),
+        (False, "request_budget", True),
+        (True, "request_budget", True),
+        (False, "response_truncated", True),
     ],
 )
 def test_full_cli_exploration_finalizes_memory_without_starting_gpu_runtime(
@@ -500,14 +549,17 @@ def test_full_cli_exploration_finalizes_memory_without_starting_gpu_runtime(
     monkeypatch: pytest.MonkeyPatch,
     interactive: bool,
     outcome: str,
+    record_trajectory: bool,
 ) -> None:
     cli = _cli_module()
     from rpent.planner.base import PlannerResult
     from rpent.robots import PromptBundle, RobotSpec, RunConfig
+    from rpent.session import EnvState
     from rpent.tools import common
     from rpent.tools.toolkit import ToolResult
 
     calls: dict[str, Any] = {}
+    stores = []
     model_requests = 0
 
     class FakeMemoryManager:
@@ -669,6 +721,8 @@ def test_full_cli_exploration_finalizes_memory_without_starting_gpu_runtime(
 
     def get_toolkit(*args: Any, **kwargs: Any) -> FakeToolkit:
         calls["get_toolkit"] = (args, kwargs)
+        toolkit.state = EnvState(kwargs["state_output_dir"])
+        stores.append(toolkit.state)
         return toolkit
 
     def reject_memory_sync(*args: Any, **kwargs: Any) -> None:
@@ -706,11 +760,36 @@ def test_full_cli_exploration_finalizes_memory_without_starting_gpu_runtime(
             "--explore-sessions",
             "3" if outcome == "response_truncated" else "2",
             *(["--tui"] if interactive else []),
+            *(["--record-trajectory"] if record_trajectory else []),
         ],
     )
 
     assert cli.main() == 0
     assert calls["build_planner"][1]["interactive"] is interactive
+    saved_tasks = {
+        data["task_id"]: data
+        for path in tmp_path.glob("**/trajectories/*/task.json")
+        for data in [json.loads(path.read_text())["task"]]
+    }
+    if record_trajectory:
+        assert len(saved_tasks) == len(stores)
+        for store in stores:
+            task = store.get_task()
+            assert task.ended_at is not None
+            assert saved_tasks[task.task_id]["status"] == task.status
+        assert [store.get_task().status for store in stores] == (
+            ["failed", "completed"]
+            if outcome == "response_truncated"
+            else ["completed"] * len(stores)
+        )
+        if outcome == "request_budget":
+            assert all(
+                store.get_task().stop_reason == "request_limit" for store in stores
+            )
+    else:
+        assert all(store.get_task() is None for store in stores)
+        assert all(store.planner_records() == [] for store in stores)
+        assert not list(tmp_path.glob("**/trajectories"))
     assert toolkit.closed is True
     assert daemon.stopped is True
     assert calls["get_toolkit"][1]["runtime_kwargs"] == {"runtime": "simulated"}
@@ -766,7 +845,18 @@ def test_full_cli_exploration_finalizes_memory_without_starting_gpu_runtime(
     ]
 
 
-@pytest.mark.parametrize("planner_name", ["codex", "flash"])
+@pytest.mark.parametrize(
+    ("planner_name", "record_trajectory"),
+    [
+        ("api", False),
+        ("api", True),
+        ("claude_code", False),
+        ("claude_code", True),
+        ("codex", False),
+        ("codex", True),
+        ("flash", True),
+    ],
+)
 @pytest.mark.parametrize(
     "planner_error", [None, "RuntimeError: Grasp not held; replay stopped"]
 )
@@ -775,13 +865,16 @@ def test_full_cli_calls_robot_result_finalizer_without_robot_special_case(
     monkeypatch: pytest.MonkeyPatch,
     planner_name: str,
     planner_error: str | None,
+    record_trajectory: bool,
 ) -> None:
     cli = _cli_module()
     from rpent.evaluation import RunFinalizationContext, write_json_atomic
     from rpent.planner.base import PlannerResult
     from rpent.robots import PromptBundle, RobotSpec, RunConfig
+    from rpent.session import EnvState
 
     captured: list[RunFinalizationContext] = []
+    capture_enabled = record_trajectory and planner_name != "flash"
 
     class FakeDaemon:
         stopped = False
@@ -792,6 +885,16 @@ def test_full_cli_calls_robot_result_finalizer_without_robot_special_case(
     class FakeToolkit:
         memory = SimpleNamespace()
         closed = False
+        state = EnvState(tmp_path / "state")
+        drained = False
+
+        def cancel_active_and_wait(self) -> None:
+            self.drained = True
+
+        def evaluation_metrics(self, *, success: bool | None) -> dict:
+            assert self.drained and not self.closed and not daemon.stopped
+            assert success is False
+            return {"score": 40.0}
 
         def solved(self) -> bool:
             return False
@@ -802,6 +905,11 @@ def test_full_cli_calls_robot_result_finalizer_without_robot_special_case(
     class FakePlanner:
         def solve(self, **kwargs: Any) -> PlannerResult:
             del kwargs
+            task = robot_toolkit.state.get_task()
+            if capture_enabled:
+                assert task.status == "running"
+            else:
+                assert task is None
             return PlannerResult(
                 finish_result={"status": "success", "summary": "planner claim"},
                 messages=[],
@@ -825,12 +933,29 @@ def test_full_cli_calls_robot_result_finalizer_without_robot_special_case(
     def finalize_run(context: RunFinalizationContext) -> Path:
         captured.append(context)
         assert robot_toolkit.closed is True
+        if capture_enabled:
+            task = robot_toolkit.state.get_task()
+            assert task.status == ("failed" if planner_error else "completed")
+            assert task.result.data["environment_success"] is False
+            assert task.instruction == "task\n"
+            assert task.config.data["arguments"]["planner"] == planner_name
+            assert task.config.data["arguments"]["record_trajectory"] is True
+            assert task.config.data["run"]["output_dir"] == str(tmp_path)
+            saved_task = json.loads(
+                (robot_toolkit.state.trajectory_dir / "task.json").read_text()
+            )["task"]
+            assert saved_task["task_id"] == task.task_id
+            assert saved_task["status"] == task.status
+        else:
+            assert robot_toolkit.state.get_task() is None
+            assert not (tmp_path / "state" / "trajectories").exists()
         return write_json_atomic(
             context.output_dir / "result.json",
             {
                 "robot": context.robot_name,
                 "task": dict(context.task_desc),
                 "success": context.environment_success,
+                "score": context.environment_metrics["score"],
                 "planner_claim": context.finish_result,
             },
         )
@@ -867,6 +992,7 @@ def test_full_cli_calls_robot_result_finalizer_without_robot_special_case(
             "1",
             "--planner",
             planner_name,
+            *(["--record-trajectory"] if record_trajectory else []),
             "--model",
             "gpt-5.5",
             "--reasoning-effort",
@@ -890,6 +1016,7 @@ def test_full_cli_calls_robot_result_finalizer_without_robot_special_case(
     context = captured[0]
     assert context.robot_name == "testrobot"
     assert context.environment_success is False
+    assert context.environment_metrics == {"score": 40.0}
     assert context.agent_error == planner_error
     assert context.planner == planner_name
     assert context.model == "gpt-5.5"
@@ -901,6 +1028,7 @@ def test_full_cli_calls_robot_result_finalizer_without_robot_special_case(
         "robot": "testrobot",
         "task": {"task_name": "OpenDrawer", "seed": 1},
         "success": False,
+        "score": 40.0,
         "planner_claim": {"status": "success", "summary": "planner claim"},
     }
     assert robot_toolkit.closed is True

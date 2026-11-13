@@ -44,6 +44,7 @@ from robots.libero.robot_spec import get_robot_spec, get_toolkit
 from rpent.dashboard.events import NullDashboardEventSink
 from rpent.evaluation.rl_episode import (
     EXIT_SETUP_FAILED,
+    capture_episode,
     solve,
     token_counter,
     write_transcript,
@@ -175,7 +176,7 @@ def run(args: argparse.Namespace) -> int:
         )
     max_turns = options.pop("max_turns")
     init_output_dir(args.output_dir)
-    with contextlib.ExitStack() as release:
+    with contextlib.ExitStack() as capture, contextlib.ExitStack() as release:
         try:
             toolkit, config, memory_prompt, receipt = start_environment(
                 args, task, release
@@ -185,6 +186,9 @@ def run(args: argparse.Namespace) -> int:
             return EXIT_SETUP_FAILED
         system_prompt, user_message = render_prompts(
             config, args.output_dir, memory_prompt
+        )
+        captured_results = capture.enter_context(
+            capture_episode(toolkit, instruction=user_message, config=request)
         )
         count_tokens = (
             token_counter(args.tokenizer_path) if args.tokenizer_path else None
@@ -200,6 +204,7 @@ def run(args: argparse.Namespace) -> int:
                 max_turns=max_turns,
             )
         )
+        captured_results.append(result)
         write_transcript(args.output_dir, result)
         outcome = {
             **episode_outcome(result, toolkit, max_turns),

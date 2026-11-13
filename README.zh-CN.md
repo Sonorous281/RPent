@@ -47,6 +47,7 @@ RPent 面向以下四类用户：
 
 ## 最新动态
 
+- [2026/11] 🔥 新增数据飞轮。支持轨迹采集和数据清洗功能，用采集的成功轨迹对 VLA 进行监督微调后，RPent 在 RoboTwin 评测中的任务成功率从 48% 升至 72%，提高 **24 个百分点**。详见 [使用指南](https://rpent.readthedocs.io/zh-cn/latest/rst_source/guides/flywheel.html)。
 - [2026/10] 🔥 新增可选的 APXInf VLA endpoint 接入，参见 [部署指南](https://rpent.readthedocs.io/zh-cn/latest/rst_source/guides/advanced_deployment.html#apxinf-vla-service-optional)。
 - [2026/09] 🔥 新增交互式 RPent 排行榜，覆盖 LIBERO、LIBERO-PRO、RoboCasa365 与 RoboTwin，提供模型对比及套件汇总。查看 [排行榜](https://rpent.readthedocs.io/zh-cn/latest/rst_source/leaderboard/index.html)。
 - [2026/09] 🔥 RPent 支持 Franka 单臂与双臂真机扩展。文档：[Franka](https://rpent.readthedocs.io/zh-cn/latest/rst_source/real_world_robots/franka.html) · [Dual Franka](https://rpent.readthedocs.io/zh-cn/latest/rst_source/real_world_robots/dual_franka.html)。
@@ -87,7 +88,8 @@ RPent 面向以下四类用户：
           <li><b>WAM</b></li>
           <ul>
             <li>DreamZero</li>
-            <li>Cosmos Policy</li>
+            <li><a href="docs/source-zh/rst_source/development/add_action_model.rst">Cosmos Policy</a>（LIBERO / LIBERO-Pro）</li>
+            <li><a href="docs/source-zh/rst_source/development/add_action_model.rst">Fast-WAM</a>（LIBERO / LIBERO-Pro / RoboTwin）</li>
           </ul>
         </ul>
       </td>
@@ -179,7 +181,8 @@ export LIBERO_TYPE=pro
 # 运行一个任务：libero_object_swap，task 2，seed 0，使用 Claude Code
 # 和 Claude Opus 4.8。
 rpent --robot libero --suite libero_object_swap --task 2 --seed 0 \
-  --cuda-device 0 --planner claude_code --model claude-opus-4-8
+  --env-cuda-device 0 --am-cuda-device 0 --sam3-cuda-device 0 \
+  --planner claude_code --model claude-opus-4-8
 ```
 
 其他规划器（`api`、`codex`）与模型提供商的配置见[规划器文档](https://rpent.readthedocs.io/zh-cn/latest/rst_source/guides/configure_planner.html)。

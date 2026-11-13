@@ -17,13 +17,16 @@
 from __future__ import annotations
 
 import threading
+from functools import partial
 from pathlib import Path
 from typing import Any
 
+from robots.libero.capture import capture_libero_call
 from robots.libero_rl.tools import LiberoRLPrimitives
 from rpent.dashboard.events import DashboardEventSink
 from rpent.memory import MemoryManager
 from rpent.session import EnvState
+from rpent.session.env_capture import CapturingEnvClient
 from rpent.tools import ToolResult, iter_tools
 from rpent.tools.toolkit import Toolkit
 
@@ -51,6 +54,11 @@ class LiberoRLToolkit(Toolkit):
         super().__init__(dashboard_events=dashboard_events, state=state, memory=memory)
         self._images_sent = 0
         self._images_lock = threading.Lock()
+        runtime_kwargs = dict(runtime_kwargs)
+        env = runtime_kwargs["env"]
+        runtime_kwargs["env"] = CapturingEnvClient(
+            env, state=state, capture_call=partial(capture_libero_call, env)
+        )
         self._primitives = LiberoRLPrimitives(
             state=state, check_cancelled=self.raise_if_cancelled, **runtime_kwargs
         )

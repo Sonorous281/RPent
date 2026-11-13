@@ -352,3 +352,70 @@ def test_rl_episode_reports_outcome_after_releasing_the_scene(tmp_path, monkeypa
     args.request.write_text(json.dumps(task))
     with pytest.raises(ValueError, match="given together"):
         rl_episode.run(args)
+
+
+@pytest.mark.parametrize("backend", [None, "egl", "osmesa"])
+def test_environment_launcher_preserves_render_backend(monkeypatch, tmp_path, backend):
+    from robots.libero import runtime
+
+    if backend is None:
+        monkeypatch.delenv("MUJOCO_GL", raising=False)
+    else:
+        monkeypatch.setenv("MUJOCO_GL", backend)
+    daemons = []
+
+    def daemon(**kwargs):
+        process = SimpleNamespace(**kwargs, start=Mock(), stop=Mock())
+        daemons.append(process)
+        return process
+
+    monkeypatch.setattr(runtime, "ProcessDaemon", daemon)
+    monkeypatch.setattr(runtime, "make_rpc_client", lambda endpoint: endpoint)
+    monkeypatch.setattr(
+        runtime, "wait_for_endpoint", lambda process: "http://127.0.0.1:12"
+    )
+    args = SimpleNamespace(
+        env_endpoint=None,
+        suite="libero_object",
+        task=1,
+        seed=3,
+        max_episode_steps=10000,
+        libero_type="standard",
+        cuda_device=2,
+    )
+    process, client = runtime.spawn_env_server(args, tmp_path)
+    assert process.env_overrides == {
+        "LIBERO_TYPE": "standard",
+        "MUJOCO_GL": backend or "egl",
+        "ROBOT_PLATFORM": "LIBERO",
+    }
+    assert process.cmd[-2:] == ["--cuda-device", "2"]
+    assert client == "http://127.0.0.1:12"
+    args.env_endpoint = "http://127.0.0.1:13"
+    external, client = runtime.spawn_env_server(args, tmp_path)
+    assert external is None and len(daemons) == 1
+    assert client == args.env_endpoint
+
+
+def test_environment_launcher_releases_failed_child(monkeypatch, tmp_path):
+    from robots.libero import runtime
+
+    process = SimpleNamespace(start=Mock(), stop=Mock())
+    monkeypatch.setattr(runtime, "ProcessDaemon", lambda **kwargs: process)
+
+    def failed_endpoint(daemon):
+        raise RuntimeError("server exited before ready")
+
+    monkeypatch.setattr(runtime, "wait_for_endpoint", failed_endpoint)
+    args = SimpleNamespace(
+        env_endpoint=None,
+        suite="libero_object",
+        task=1,
+        seed=3,
+        max_episode_steps=10000,
+        libero_type="standard",
+        cuda_device=None,
+    )
+    with pytest.raises(RuntimeError, match="server exited before ready"):
+        runtime.spawn_env_server(args, tmp_path)
+    process.stop.assert_called_once()

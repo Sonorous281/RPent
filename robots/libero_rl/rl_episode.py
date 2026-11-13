@@ -36,12 +36,17 @@ from pathlib import Path
 
 from openai import AsyncOpenAI
 from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_core import to_jsonable_python
 
 from robots.libero_rl.robot_spec import get_robot_spec, get_toolkit
 from rpent.dashboard.events import NullDashboardEventSink
+from rpent.evaluation.rl_episode import (
+    EXIT_SETUP_FAILED,
+    episode_outcome,
+    solve,
+    token_counter,
+    write_transcript,
+)
 from rpent.planner.api_loop import ApiAgentLoop
-from rpent.planner.base import PlannerResult
 from rpent.planner.compaction import build_history_compaction
 from rpent.planner.qwen import QwenChatModel, qwen_model_settings
 from rpent.robots.robot_spec import RunConfig
@@ -49,27 +54,6 @@ from rpent.tools.toolkit import Toolkit
 from rpent.utils.logging import get_logger, init_output_dir
 
 logger = get_logger("libero_rl_episode")
-# Exit status when the environment or a shared service did not start; the
-# trainer may run the episode again.
-EXIT_SETUP_FAILED = 75
-# Planner errors with a task outcome, including exhaustion of episode budgets.
-_TERMINAL_ERRORS = {
-    "tool_arguments",
-    "tool_name",
-    "response_truncated",
-    "context_limit",
-    "episode_timeout",
-}
-
-
-def _token_counter(tokenizer_path: Path) -> Callable[[str], int]:
-    """Count text tokens with the served model's tokenizer."""
-    from transformers import AutoTokenizer
-
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-    # Segments carry their own text only; the chat template already added the
-    # special tokens that the real prompt pays for.
-    return lambda text: len(tokenizer.encode(text, add_special_tokens=False))
 
 
 def start_environment(
@@ -163,60 +147,6 @@ def build_planner(
     return planner, client
 
 
-async def solve(
-    planner: ApiAgentLoop,
-    client: AsyncOpenAI,
-    toolkit: Toolkit,
-    *,
-    system_prompt: str,
-    user_message: str,
-    max_turns: int,
-) -> PlannerResult:
-    """Run the planner and close its model client with the episode."""
-    async with client:
-        return await planner.solve_async(
-            system_prompt=system_prompt,
-            user_message=user_message,
-            toolkit=toolkit,
-            max_turns=max_turns,
-        )
-
-
-def episode_outcome(result: PlannerResult, toolkit: Toolkit, max_turns: int) -> dict:
-    """Describe a finished episode; success always comes from the environment."""
-    success = bool(toolkit.solved())
-    terminal_error = result.error_kind in _TERMINAL_ERRORS
-    if success:
-        reason = "success"
-    elif result.error:
-        reason = result.error_kind if terminal_error else "error"
-    elif result.stats["turns_used"] >= max_turns:
-        reason = "request_limit"
-    else:
-        reason = "planner_completed"
-    return {
-        "success": success,
-        "truncated": False,
-        "terminal": success or not result.error or terminal_error,
-        "termination_reason": reason,
-        "error": result.error,
-        "error_kind": result.error_kind,
-    }
-
-
-def write_transcript(output: Path, result: PlannerResult) -> None:
-    transcript = {
-        "messages": result.messages,
-        "stats": result.stats,
-        "finish_result": result.finish_result,
-        "error": result.error,
-        "error_kind": result.error_kind,
-    }
-    (output / "planner.json").write_text(
-        json.dumps(to_jsonable_python(transcript, bytes_mode="base64"), indent=2) + "\n"
-    )
-
-
 def run(args: argparse.Namespace) -> int:
     """Run the requested episode, write ``outcome.json`` and return the exit status."""
     request = json.loads(args.request.read_text())
@@ -236,7 +166,7 @@ def run(args: argparse.Namespace) -> int:
             return EXIT_SETUP_FAILED
         system_prompt, user_message = render_prompts(config)
         count_tokens = (
-            _token_counter(args.tokenizer_path) if args.tokenizer_path else None
+            token_counter(args.tokenizer_path) if args.tokenizer_path else None
         )
         planner, client = build_planner(
             **options,

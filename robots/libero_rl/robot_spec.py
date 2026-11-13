@@ -24,6 +24,7 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from robots.libero.runtime import spawn_env_server
 from robots.libero_rl.prompt_bundle import (
     OBSERVATION_MODES,
     PROMPT_VARIANTS,
@@ -215,37 +216,6 @@ def _spawn_server(
     return daemon, make_rpc_client(endpoint)
 
 
-def _start_env(
-    args: argparse.Namespace, output_dir: Path
-) -> tuple[ProcessDaemon | None, RpcClient]:
-    if args.env_endpoint is not None:
-        return None, make_rpc_client(args.env_endpoint)
-    from rpent.utils.config import get_libero_type
-
-    # The LIBERO env server and client are shared with robots.libero.
-    return _spawn_server(
-        args,
-        output_dir,
-        "env_server",
-        get_repo_root() / "robots" / "libero" / "env_server.py",
-        [
-            "--suite",
-            args.suite,
-            "--task",
-            str(args.task),
-            "--seed",
-            str(args.seed),
-            "--max-episode-steps",
-            str(args.max_episode_steps),
-        ],
-        {
-            "LIBERO_TYPE": args.libero_type or get_libero_type(),
-            "MUJOCO_GL": "egl",
-            "ROBOT_PLATFORM": "LIBERO",
-        },
-    )
-
-
 def _start_sam3(
     args: argparse.Namespace, output_dir: Path
 ) -> tuple[ProcessDaemon | None, RpcClient]:
@@ -270,7 +240,7 @@ def _init_runtime(
     from robots.libero.env_client import LiberoEnvClient
     from rpent.robots.components.sam3_client import Sam3Client
 
-    starters = {"env": _start_env, "sam3": _start_sam3}
+    starters = {"env": spawn_env_server, "sam3": _start_sam3}
     connectors = {
         "env": lambda rpc: {
             "env": LiberoEnvClient(

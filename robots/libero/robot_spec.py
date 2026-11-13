@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from robots.libero.prompt_bundle import system_prompt, user_prompt
+from robots.libero.runtime import spawn_env_server
 from rpent.dashboard.events import DashboardEventSink
 from rpent.dashboard.spec import DashboardSpec
 from rpent.memory import MemoryManager
@@ -32,7 +33,7 @@ from rpent.robots.robot_spec import RobotSpec, RunConfig
 from rpent.robots.runtime import try_spawn_server, try_wait_server
 from rpent.utils.config import get_memory_dir, get_repo_root
 from rpent.utils.daemon import ProcessDaemon, pick_free_port
-from rpent.utils.rpc import make_rpc_client, wait_for_endpoint
+from rpent.utils.rpc import make_rpc_client
 from rpent.utils.rpc.http_rpc import HttpRpcClient
 
 if TYPE_CHECKING:
@@ -401,56 +402,6 @@ def _cuda_args(args: argparse.Namespace) -> list[str]:
     )
 
 
-def _spawn_env_server(
-    args: argparse.Namespace,
-    output_dir: Path,
-) -> tuple[ProcessDaemon | None, RpcClient]:
-    if args.env_endpoint is not None:
-        return None, make_rpc_client(args.env_endpoint)
-
-    from rpent.utils.config import get_libero_type
-
-    log = output_dir / "env_server.log"
-    log.unlink(missing_ok=True)
-    daemon = ProcessDaemon(
-        name="env_server",
-        cmd=[
-            sys.executable,
-            str(get_repo_root() / "robots" / "libero" / "env_server.py"),
-            "--suite",
-            args.suite,
-            "--task",
-            str(args.task),
-            "--seed",
-            str(args.seed),
-            "--max-episode-steps",
-            str(args.max_episode_steps),
-            "--transport",
-            "http",
-            "--host",
-            "127.0.0.1",
-            # Concurrent episodes start many env servers; each binds its own port.
-            "--port",
-            "0",
-            "--parent-watch",
-            *_cuda_args(args),
-        ],
-        env_overrides={
-            "LIBERO_TYPE": args.libero_type or get_libero_type(),
-            "MUJOCO_GL": "egl",
-            "ROBOT_PLATFORM": "LIBERO",
-        },
-        log_path=str(log),
-    )
-    daemon.start()
-    try:
-        endpoint = wait_for_endpoint(daemon)
-    except BaseException:
-        daemon.stop()
-        raise
-    return daemon, make_rpc_client(endpoint)
-
-
 def _spawn_vla_server(
     args: argparse.Namespace,
     output_dir: Path,
@@ -545,7 +496,7 @@ def _init_runtime(
         "sam3": lambda: _spawn_sam3_server(args, output_dir),
         "molmo": lambda: _connect_molmo_server(args),
         # Starts last: it returns only once its server has bound a port.
-        "env": lambda: _spawn_env_server(args, output_dir),
+        "env": lambda: spawn_env_server(args, output_dir),
     }
     connectors = {
         "env": lambda rpc: {

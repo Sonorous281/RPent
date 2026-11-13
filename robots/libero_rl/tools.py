@@ -160,7 +160,11 @@ class LiberoRLPrimitives:
         target_yaw: float | None = None,
         target_pitch: float | None = None,
     ) -> ToolResult:
-        """Move the end effector to an absolute pose and stop when it settles. Omitted targets keep their measured values, and the gripper keeps its last set_gripper target. Motion follows a straight line without collision avoidance. Returns status reached, partial with a reason, or error, with the measured pose and opening.
+        """Move to an absolute pose along a straight line, without collision avoidance.
+
+        Omitted targets keep their measured values; the gripper keeps its
+        last set_gripper target. Stop when settled, stalled, or at the step
+        limit. Return reached, partial with a reason, or error, plus pose errors.
 
         Args:
             xyz: Target position [x, y, z], world frame, meters.

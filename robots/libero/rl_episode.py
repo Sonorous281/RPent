@@ -38,11 +38,17 @@ from openai import AsyncOpenAI
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai_harness.compaction import SlidingWindowCompaction
-from pydantic_core import to_jsonable_python
 
 from robots.libero.memory import render_frozen_entries
 from robots.libero.robot_spec import get_robot_spec, get_toolkit
 from rpent.dashboard.events import NullDashboardEventSink
+from rpent.evaluation.rl_episode import (
+    EXIT_SETUP_FAILED,
+    solve,
+    token_counter,
+    write_transcript,
+)
+from rpent.evaluation.rl_episode import episode_outcome as _episode_outcome
 from rpent.planner.api_loop import ApiAgentLoop
 from rpent.planner.base import PlannerResult
 from rpent.robots.robot_spec import RunConfig
@@ -50,25 +56,6 @@ from rpent.tools.toolkit import Toolkit
 from rpent.utils.logging import get_logger, init_output_dir
 
 logger = get_logger("libero_rl_episode")
-# Exit status when the environment or a shared service did not start; the
-# trainer may run the episode again.
-EXIT_SETUP_FAILED = 75
-# Planner errors with a task outcome, including exhaustion of episode budgets.
-_TERMINAL_ERRORS = {
-    "tool_arguments",
-    "tool_name",
-    "response_truncated",
-    "context_limit",
-    "episode_timeout",
-}
-
-
-def _token_counter(tokenizer_path: Path) -> Callable[[str], int]:
-    """Count text tokens with the served model's tokenizer."""
-    from transformers import AutoTokenizer
-
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-    return lambda text: len(tokenizer.encode(text, add_special_tokens=False))
 
 
 def start_environment(
@@ -169,60 +156,10 @@ def build_planner(
     return planner, client
 
 
-async def solve(
-    planner: ApiAgentLoop,
-    client: AsyncOpenAI,
-    toolkit: Toolkit,
-    *,
-    system_prompt: str,
-    user_message: str,
-    max_turns: int,
-) -> PlannerResult:
-    """Run the planner and close its model client with the episode."""
-    async with client:
-        return await planner.solve_async(
-            system_prompt=system_prompt,
-            user_message=user_message,
-            toolkit=toolkit,
-            max_turns=max_turns,
-        )
-
-
 def episode_outcome(result: PlannerResult, toolkit: Toolkit, max_turns: int) -> dict:
-    """Describe a finished episode; success always comes from the environment."""
-    success = bool(toolkit.solved())
-    truncated = bool(toolkit.state.get().truncated)
-    terminal_error = result.error_kind in _TERMINAL_ERRORS
-    if success:
-        reason = "success"
-    elif result.error:
-        reason = result.error_kind if terminal_error else "error"
-    elif truncated:
-        reason = "environment_limit"
-    elif result.stats["turns_used"] >= max_turns:
-        reason = "request_limit"
-    else:
-        reason = "planner_completed"
-    return {
-        "success": success,
-        "truncated": truncated,
-        "terminal": success or not result.error or terminal_error,
-        "termination_reason": reason,
-        "error": result.error,
-        "error_kind": result.error_kind,
-    }
-
-
-def write_transcript(output: Path, result: PlannerResult) -> None:
-    transcript = {
-        "messages": result.messages,
-        "stats": result.stats,
-        "finish_result": result.finish_result,
-        "error": result.error,
-        "error_kind": result.error_kind,
-    }
-    (output / "planner.json").write_text(
-        json.dumps(to_jsonable_python(transcript, bytes_mode="base64"), indent=2) + "\n"
+    """Include the native environment's truncation in the shared outcome."""
+    return _episode_outcome(
+        result, toolkit, max_turns, truncated=bool(toolkit.state.get().truncated)
     )
 
 
@@ -250,7 +187,7 @@ def run(args: argparse.Namespace) -> int:
             config, args.output_dir, memory_prompt
         )
         count_tokens = (
-            _token_counter(args.tokenizer_path) if args.tokenizer_path else None
+            token_counter(args.tokenizer_path) if args.tokenizer_path else None
         )
         planner, client = build_planner(**options, count_tokens=count_tokens)
         result = asyncio.run(

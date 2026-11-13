@@ -36,10 +36,10 @@ from rpent.evaluation import RunFinalizationContext, write_json_atomic
 from rpent.memory import MemoryManager
 from rpent.robots.prompt_bundle import PromptBundle
 from rpent.robots.robot_spec import RobotSpec, RunConfig
-from rpent.robots.runtime import try_spawn_server, try_wait_server
+from rpent.robots.runtime import start_rpc_server, try_spawn_server, try_wait_server
 from rpent.utils.config import get_memory_dir, get_repo_root
 from rpent.utils.daemon import ProcessDaemon
-from rpent.utils.rpc import make_rpc_client, wait_for_endpoint
+from rpent.utils.rpc import make_rpc_client
 
 if TYPE_CHECKING:
     from rpent.utils.rpc import RpcClient
@@ -176,25 +176,19 @@ def _parse_config(args: argparse.Namespace) -> RunConfig:
     )
 
 
-def _spawn_server(
-    args: argparse.Namespace,
-    output_dir: Path,
-    name: str,
-    script: Path,
-    script_args: list[str],
-    env_overrides: dict[str, str] | None = None,
-) -> tuple[ProcessDaemon, RpcClient]:
-    log = output_dir / f"{name}.log"
-    log.write_text("")
+def _start_sam3(
+    args: argparse.Namespace, output_dir: Path
+) -> tuple[ProcessDaemon | None, RpcClient]:
+    if args.sam3_endpoint is not None:
+        return None, make_rpc_client(args.sam3_endpoint)
     cuda = (
         ["--cuda-device", str(args.cuda_device)] if args.cuda_device is not None else []
     )
     daemon = ProcessDaemon(
-        name=name,
+        name="sam3_server",
         cmd=[
             sys.executable,
-            str(script),
-            *script_args,
+            str(get_repo_root() / "rpent" / "robots" / "components" / "sam3_server.py"),
             "--transport",
             "http",
             "--host",
@@ -204,30 +198,9 @@ def _spawn_server(
             "--parent-watch",
             *cuda,
         ],
-        env_overrides=env_overrides,
-        log_path=str(log),
+        log_path=str(output_dir / "sam3_server.log"),
     )
-    daemon.start()
-    try:
-        endpoint = wait_for_endpoint(daemon)
-    except BaseException:
-        daemon.stop()
-        raise
-    return daemon, make_rpc_client(endpoint)
-
-
-def _start_sam3(
-    args: argparse.Namespace, output_dir: Path
-) -> tuple[ProcessDaemon | None, RpcClient]:
-    if args.sam3_endpoint is not None:
-        return None, make_rpc_client(args.sam3_endpoint)
-    return _spawn_server(
-        args,
-        output_dir,
-        "sam3_server",
-        get_repo_root() / "rpent" / "robots" / "components" / "sam3_server.py",
-        [],
-    )
+    return start_rpc_server(daemon)
 
 
 def _init_runtime(

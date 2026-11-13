@@ -178,7 +178,20 @@ def test_local_vla_gpu_override_reaches_worker(
             monkeypatch.setattr(
                 module, "_resolve_env_runtime_path", lambda args: tmp_path
             )
-        _, rpc = module._spawn_env_server(args, tmp_path)
+        if robot_name == "libero":
+            from robots.libero import runtime as libero_runtime
+            from rpent.robots import runtime as shared_runtime
+
+            monkeypatch.setattr(libero_runtime, "ProcessDaemon", factory)
+            factory.return_value.log_path = str(tmp_path / "env_server.log")
+            monkeypatch.setattr(
+                shared_runtime,
+                "wait_for_endpoint",
+                lambda process: "http://127.0.0.1:8116",
+            )
+            _, rpc = module.spawn_env_server(args, tmp_path)
+        else:
+            _, rpc = module._spawn_env_server(args, tmp_path)
         try:
             if robot_name in ("robotwin", "robodojo"):
                 assert (

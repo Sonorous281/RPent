@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -31,7 +32,9 @@ from robots.libero_rl.toolkit import LiberoRLToolkit
 from rpent.dashboard.events import NullDashboardEventSink
 from rpent.memory import MemoryManager
 from rpent.robots.components.sam3_client import Sam3Result
+from rpent.robots.runtime import start_rpc_server
 from rpent.utils import templates
+from rpent.utils.daemon import ProcessDaemon
 
 OPEN_GAP = 0.08
 SIZE = 32
@@ -539,12 +542,18 @@ def test_concurrent_runtime_clients_follow_their_servers_announced_ports(tmp_pat
         output = tmp_path / str(index)
         output.mkdir()
         (output / "env.log").write_text("RPC server listening on http://127.0.0.1:1\n")
-        return robot_spec._spawn_server(
-            argparse.Namespace(cuda_device=None),
-            output,
-            "env",
-            script,
-            ["--identity", str(index)],
+        return start_rpc_server(
+            ProcessDaemon(
+                name="env",
+                cmd=[
+                    sys.executable,
+                    str(script),
+                    "--identity",
+                    str(index),
+                    "--parent-watch",
+                ],
+                log_path=str(output / "env.log"),
+            )
         )
 
     results, errors = [], []
@@ -560,7 +569,8 @@ def test_concurrent_runtime_clients_follow_their_servers_announced_ports(tmp_pat
             raise errors[0]
         assert [client.call("identity") for _, client in results] == list(range(8))
     finally:
-        for daemon, _ in results:
+        for daemon, client in results:
+            client.close()
             daemon.stop(timeout=2)
 
 
@@ -568,8 +578,12 @@ def test_runtime_reports_a_server_that_exits_before_announcing(tmp_path):
     script = tmp_path / "crash.py"
     script.write_text("raise SystemExit(7)\n")
     with pytest.raises(RuntimeError, match="did not announce its endpoint"):
-        robot_spec._spawn_server(
-            argparse.Namespace(cuda_device=None), tmp_path, "env", script, []
+        start_rpc_server(
+            ProcessDaemon(
+                name="env",
+                cmd=[sys.executable, str(script)],
+                log_path=str(tmp_path / "env.log"),
+            )
         )
 
 

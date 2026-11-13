@@ -850,6 +850,7 @@ def test_rl_episode_setup_failure_releases_started_services(tmp_path, monkeypatc
 @pytest.mark.parametrize("backend", [None, "egl", "osmesa"])
 def test_environment_launcher_preserves_render_backend(monkeypatch, tmp_path, backend):
     from robots.libero import runtime
+    from rpent.robots import runtime as shared_runtime
 
     if backend is None:
         monkeypatch.delenv("MUJOCO_GL", raising=False)
@@ -864,8 +865,9 @@ def test_environment_launcher_preserves_render_backend(monkeypatch, tmp_path, ba
 
     monkeypatch.setattr(runtime, "ProcessDaemon", daemon)
     monkeypatch.setattr(runtime, "make_rpc_client", lambda endpoint: endpoint)
+    monkeypatch.setattr(shared_runtime, "make_rpc_client", lambda endpoint: endpoint)
     monkeypatch.setattr(
-        runtime, "wait_for_endpoint", lambda process: "http://127.0.0.1:12"
+        shared_runtime, "wait_for_endpoint", lambda process: "http://127.0.0.1:12"
     )
     args = SimpleNamespace(
         env_endpoint=None,
@@ -892,14 +894,15 @@ def test_environment_launcher_preserves_render_backend(monkeypatch, tmp_path, ba
 
 def test_environment_launcher_releases_failed_child(monkeypatch, tmp_path):
     from robots.libero import runtime
+    from rpent.robots import runtime as shared_runtime
 
-    process = SimpleNamespace(start=Mock(), stop=Mock())
+    process = SimpleNamespace(start=Mock(), stop=Mock(), log_path=None)
     monkeypatch.setattr(runtime, "ProcessDaemon", lambda **kwargs: process)
 
     def failed_endpoint(daemon):
         raise RuntimeError("server exited before ready")
 
-    monkeypatch.setattr(runtime, "wait_for_endpoint", failed_endpoint)
+    monkeypatch.setattr(shared_runtime, "wait_for_endpoint", failed_endpoint)
     args = SimpleNamespace(
         env_endpoint=None,
         suite="libero_object",

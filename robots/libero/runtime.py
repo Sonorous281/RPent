@@ -23,9 +23,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from robots.libero.suites import resolve_libero_type
+from rpent.robots.runtime import start_rpc_server
 from rpent.utils.config import get_repo_root, resolve_cuda_device
 from rpent.utils.daemon import ProcessDaemon
-from rpent.utils.rpc import make_rpc_client, wait_for_endpoint
+from rpent.utils.rpc import make_rpc_client
 
 if TYPE_CHECKING:
     from rpent.utils.rpc import RpcClient
@@ -42,7 +43,6 @@ def spawn_env_server(
     device = resolve_cuda_device(args, "env")
 
     log = output_dir / "env_server.log"
-    log.unlink(missing_ok=True)
     daemon = ProcessDaemon(
         name="env_server",
         cmd=[
@@ -73,10 +73,4 @@ def spawn_env_server(
         },
         log_path=str(log),
     )
-    daemon.start()
-    try:
-        endpoint = wait_for_endpoint(daemon)
-    except BaseException:
-        daemon.stop()
-        raise
-    return daemon, make_rpc_client(endpoint)
+    return start_rpc_server(daemon)

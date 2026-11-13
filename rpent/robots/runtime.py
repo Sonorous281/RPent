@@ -16,22 +16,39 @@
 
 These orchestrate the lifecycle of subprocess-backed servers (env, vla,
 sam3) selected through the ``init_runtime`` contract on
-:class:`~rpent.robots.robot_spec.RobotSpec`. Each helper reports state
-transitions to a :class:`~rpent.dashboard.events.DashboardEventSink` so
+:class:`~rpent.robots.robot_spec.RobotSpec`. The orchestration helpers report
+state transitions to a :class:`~rpent.dashboard.events.DashboardEventSink` so
 the dashboard UI stays in sync with the actual processes.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from rpent.dashboard.events import DashboardEventSink, RuntimeStatusEvent
 from rpent.utils.daemon import ProcessDaemon
-from rpent.utils.rpc import wait_for_ready
+from rpent.utils.rpc import make_rpc_client, wait_for_endpoint, wait_for_ready
 
 if TYPE_CHECKING:
     from rpent.utils.rpc import RpcClient
+
+
+def start_rpc_server(daemon: ProcessDaemon) -> tuple[ProcessDaemon, RpcClient]:
+    """Start an owned server and connect to the endpoint it announces.
+
+    A fresh log prevents a previous run's endpoint from being reused. Until the
+    client is returned, this function owns cleanup if startup fails or is cancelled.
+    """
+    if daemon.log_path is not None:
+        Path(daemon.log_path).write_text("")
+    daemon.start()
+    try:
+        return daemon, make_rpc_client(wait_for_endpoint(daemon))
+    except BaseException:
+        daemon.stop()
+        raise
 
 
 def stop_owned_daemons(

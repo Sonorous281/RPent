@@ -3,8 +3,10 @@
 [简体中文](README_zh.md)
 
 Run adaptive LIBERO-PRO collection with a local Qwen policy and shared SAM3.
+For RL training, use the [paired RLinf setup guide](https://github.com/Sonorous281/RLinf/blob/dev/rpent-rlinf-integration/docs/source-en/rst_source/examples/agentic/rpent_libero_rl_setup.rst).
+Its SGLang training environment is separate from the standalone serving stack below.
 The simulator and policy server use separate Python environments. The setup
-below works from a source checkout and does not require a cluster-specific
+below works from paired source checkouts and does not require a cluster-specific
 activation script. RLinf and ms-swift provide their own training launchers.
 
 ## Install the environments
@@ -17,22 +19,27 @@ your host/platform administrator. On Ubuntu, the remaining system packages are:
 ```bash
 sudo apt-get update
 sudo apt-get install -y git build-essential ffmpeg libegl1 libopengl0 libgl1 libglib2.0-0
-git clone --branch rpent-ppo https://github.com/zhexuanxu/RPent.git RPent
+git clone --branch dev/rpent-rlinf-integration https://github.com/Sonorous281/RLinf.git RLinf
+git clone --branch dev/rpent-rlinf-integration https://github.com/Sonorous281/RPent.git RPent
 cd RPent
+git rev-parse HEAD
+git -C ../RLinf rev-parse HEAD
 uv venv --python 3.12 .venv
 source .venv/bin/activate
 uv pip install --prerelease=allow --torch-backend cu128 -r requirements/libero-rl.txt
 source tools/libero_rl_eval/env.sh
 ```
 
-This recipe targets the published `zhexuanxu/RPent:rpent-ppo` and
-`zhexuanxu/RLinf:rpent-ppo` feature branches. Upstream `main` does not yet
+Both LIBERO workflows default to `MUJOCO_GL=egl` and preserve an explicitly set backend such as `osmesa` for CPU rendering.
+
+This recipe targets the published `Sonorous281/RPent:dev/rpent-rlinf-integration` and
+`Sonorous281/RLinf:dev/rpent-rlinf-integration` feature branches. Upstream `main` does not yet
 contain `robots/libero_rl`; after integration, use a checkout containing that
 module and its matching RLinf runtime.
 Run the requirements command from the checkout root. It installs RPent in
 editable mode, the supported RLinf runtime, SAM3 and the LIBERO-PRO simulator;
 this workflow does not need OpenPi/Pi0.5 or an action-model checkpoint. The
-requirements use that matching RLinf branch and the public RPent SAM3/LIBERO
+requirements use the paired sibling RLinf checkout and the public RPent SAM3/LIBERO
 forks. They do not select the older `rlinf` extra pinned to `release/v0.4`.
 Record their resolved revisions and `uv pip freeze` output with an experiment.
 

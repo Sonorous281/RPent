@@ -1,7 +1,8 @@
 # Python 3.12 / Linux x86_64. Run uv pip install --torch-backend cu128 -r this-file.
 # Install only the simulator and SAM3: libero_rl does not use OpenPi/Pi0.5.
 -e .[sam3]
-rlinf @ git+https://github.com/zhexuanxu/RLinf.git@rpent-ppo
+# Use the paired sibling checkout; run this file from the RPent root.
+-e ../RLinf
 rpent-libero @ git+https://github.com/RLinf/LIBERO.git@rpent
 rpent-liberopro @ git+https://github.com/RLinf/LIBERO-PRO.git@rpent
 mujoco==3.3.0

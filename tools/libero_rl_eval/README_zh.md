@@ -6,6 +6,8 @@
 仿真器与策略服务使用独立 Python 环境，安装和启动均从源码仓库完成，
 无需集群专用激活脚本。RLinf 和 ms-swift 使用各自的训练入口。
 
+训练请使用 [配套 RLinf 安装指南](https://github.com/Sonorous281/RLinf/blob/dev/rpent-rlinf-integration/docs/source-zh/rst_source/examples/agentic/rpent_libero_rl_setup.rst)。其中的 SGLang 训练环境与本页独立采集服务的环境不同，请分别创建。
+
 ## 安装环境
 
 使用 Linux x86_64、Python 3.12、Git 和 [uv](https://docs.astral.sh/uv/)。
@@ -15,20 +17,25 @@ NVIDIA 驱动由机器或平台管理员安装。Ubuntu 的其余系统依赖如
 ```bash
 sudo apt-get update
 sudo apt-get install -y git build-essential ffmpeg libegl1 libopengl0 libgl1 libglib2.0-0
-git clone --branch rpent-ppo https://github.com/zhexuanxu/RPent.git RPent
+git clone --branch dev/rpent-rlinf-integration https://github.com/Sonorous281/RLinf.git RLinf
+git clone --branch dev/rpent-rlinf-integration https://github.com/Sonorous281/RPent.git RPent
 cd RPent
+git rev-parse HEAD
+git -C ../RLinf rev-parse HEAD
 uv venv --python 3.12 .venv
 source .venv/bin/activate
 uv pip install --prerelease=allow --torch-backend cu128 -r requirements/libero-rl.txt
 source tools/libero_rl_eval/env.sh
 ```
 
-本配方使用已发布的 `zhexuanxu/RPent:rpent-ppo` 和
-`zhexuanxu/RLinf:rpent-ppo` 功能分支。上游 `main` 暂不包含
+两种 LIBERO 工作流默认使用 `MUJOCO_GL=egl`；若显式设置 `osmesa` 等后端，会保留该设置，供 CPU 渲染使用。
+
+本示例使用已发布的 `Sonorous281/RPent:dev/rpent-rlinf-integration` 和
+`Sonorous281/RLinf:dev/rpent-rlinf-integration` 功能分支。上游 `main` 暂不包含
 `robots/libero_rl`；合入后可改用包含该模块且 RLinf 运行时匹配的版本。
 依赖安装命令须在仓库根目录执行。它以 editable 方式安装 RPent，并安装
 支持的 RLinf 运行时、SAM3 和 LIBERO-PRO 仿真器；本流程不需要 OpenPi/Pi0.5
-或动作模型权重。依赖文件选择对应 RLinf 分支及公开的 RPent SAM3/LIBERO forks，
+或动作模型权重。依赖文件使用同级目录中的 RLinf checkout 及公开的 RPent SAM3/LIBERO forks，
 不选择固定到旧 `release/v0.4` 的 `rlinf` extra。
 实验中应记录这些依赖实际解析到的提交，以及 `uv pip freeze` 输出。
 

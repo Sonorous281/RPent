@@ -93,7 +93,8 @@ def _add_cli_args(parser: argparse.ArgumentParser, use_dashboard: bool) -> None:
         "--prompt",
         choices=PROMPT_VARIANTS,
         default="simple",
-        help="System prompt variant: simple is the bare tool contract; base adds "
+        help="System prompt variant: simple is the bare tool contract; "
+        "simple_brief adds concise reasoning; base adds "
         "the robot, frames and execution; base_gripper adds finger geometry; "
         "base_gripper_camera adds camera geometry.",
     )

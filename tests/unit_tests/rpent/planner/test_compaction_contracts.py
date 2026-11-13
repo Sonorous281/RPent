@@ -32,6 +32,7 @@ from pydantic_ai import (
 
 from rpent.planner.compaction import (
     DEFAULT_IMAGE_TOKENS,
+    ImageAwareSlidingWindowCompaction,
     ImageRetentionFallback,
     count_image_tokens,
     count_image_tokens_in,
@@ -224,3 +225,39 @@ async def test_retention_fallback_is_a_compaction_strategy():
     ]
     kept = await strategy.compact(history, None)
     assert count_image_tokens_in(kept) == 1024 * 2
+
+
+@pytest.mark.anyio
+async def test_message_window_triggers_on_images_without_dropping_the_task():
+    from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.tools import RunContext
+    from pydantic_ai.usage import RunUsage
+    from pydantic_ai_harness.compaction._shared import estimate_context_tokens
+
+    history = [
+        ModelRequest(parts=[UserPromptPart("pick up the cup")]),
+        ModelResponse(parts=[TextPart("looking")]),
+        ModelRequest(parts=[UserPromptPart(["old view", image()])]),
+        ModelResponse(parts=[TextPart("moving")]),
+        ModelRequest(parts=[UserPromptPart(["current view", image()])]),
+    ]
+    # Plain message counting misses the image tokens and would not compact.
+    assert estimate_context_tokens(history) < 1500
+    assert estimate_request_tokens(history) > 1500
+    model = TestModel()
+    request = ModelRequestContext(
+        model=model,
+        messages=history,
+        model_settings=None,
+        model_request_parameters=ModelRequestParameters(),
+    )
+    strategy = ImageAwareSlidingWindowCompaction(
+        max_tokens=1500, keep_messages=2, receipts=False
+    )
+    result = await strategy.before_model_request(
+        RunContext(deps=None, model=model, usage=RunUsage()), request
+    )
+    assert result.messages[0] == history[0]
+    assert result.messages[-1] == history[-1]
+    assert count_image_tokens_in(result.messages) == 1024

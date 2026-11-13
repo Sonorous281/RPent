@@ -17,10 +17,9 @@
 The Harness measures message *text*: a tool result holding image bytes is
 stringified and divided by four, and an image inside a user prompt is not
 counted at all. A rollout planner ships one two-camera observation per action,
-so that estimate is unrelated to what the server bills -- compaction fires late
-or never. This module supplies the missing image accounting, an image retention
-policy, and an escalation loop that stops on the real cost while reusing the
-Harness tiers for the work itself.
+so either error can misplace the compaction trigger. This module supplies image
+accounting, an image retention policy, and an escalation loop that uses the
+estimated prompt cost while reusing the Harness tiers for the work itself.
 """
 
 from __future__ import annotations
@@ -29,7 +28,7 @@ import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from io import BytesIO
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import (
@@ -48,14 +47,21 @@ from pydantic_ai.tools import AgentDepsT, RunContext
 from pydantic_ai_harness.compaction import (
     ClearToolResults,
     CompactionStrategy,
+    SlidingWindowCompaction,
     SummarizingCompaction,
 )
 from pydantic_ai_harness.compaction._shared import (
+    compact_with_span,
     context_for_request,
     estimate_context_tokens,
+    estimate_token_count,
     iter_tool_pairs,
     record_compaction_reclaim,
+    resolve_token_trigger,
 )
+
+if TYPE_CHECKING:
+    from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
 
 # Qwen3.5-4B vision geometry: 16-pixel patches merged 2x2, so one merged token
 # covers a 32x32 pixel block and a 1024x1024 camera image is 1024 tokens.
@@ -125,6 +131,8 @@ def _usage_anchor_index(messages: Sequence[ModelMessage]) -> int | None:
 def estimate_request_tokens(
     messages: Sequence[ModelMessage],
     tokenizer: Callable[[str], int] | None = None,
+    *,
+    model_request_parameters: ModelRequestParameters | None = None,
 ) -> int:
     """Estimate the full prompt cost: message text plus the images it carries.
 
@@ -140,7 +148,67 @@ def estimate_request_tokens(
     stripped = retain_images(list(messages), set())
     anchor = _usage_anchor_index(messages)
     tail = list(messages) if anchor is None else list(messages[anchor + 1 :])
-    return estimate_context_tokens(stripped, tokenizer) + count_image_tokens_in(tail)
+    return estimate_context_tokens(
+        stripped, tokenizer, model_request_parameters=model_request_parameters
+    ) + count_image_tokens_in(tail)
+
+
+def _estimate_history_tokens(
+    messages: Sequence[ModelMessage], tokenizer: Callable[[str], int] | None
+) -> int:
+    """Measure reclaim without a provider usage anchor that survives compaction."""
+    return estimate_token_count(
+        retain_images(list(messages), set()), tokenizer
+    ) + count_image_tokens_in(messages)
+
+
+@dataclass
+class ImageAwareSlidingWindowCompaction(SlidingWindowCompaction):
+    """Keep Harness message cutoffs while charging images by their token geometry.
+
+    Token-window recipes retain Harness behavior; this adapter changes only
+    the trigger and usage correction for message-window recipes.
+    """
+
+    async def before_model_request(
+        self, ctx: RunContext[AgentDepsT], request_context: ModelRequestContext
+    ) -> ModelRequestContext:
+        if self.keep_tokens is not None:
+            return await super().before_model_request(ctx, request_context)
+        messages = list(request_context.messages)
+        request_ctx = context_for_request(ctx, request_context)
+        trigger = resolve_token_trigger(
+            self.max_tokens,
+            self.max_fraction,
+            request_ctx.model,
+            self.fallback_context_window,
+            self.context_window,
+        )
+        parameters = request_context.model_request_parameters
+        too_many_messages = (
+            self.max_messages is not None and len(messages) > self.max_messages
+        )
+        if not too_many_messages and trigger is None:
+            return request_context
+        before = estimate_request_tokens(
+            messages, self.tokenizer, model_request_parameters=parameters
+        )
+        if not too_many_messages and (trigger is None or before <= trigger):
+            return request_context
+        compacted = await compact_with_span(
+            request_ctx,
+            strategy="SlidingWindowCompaction",
+            messages=messages,
+            compact=lambda: self.compact(messages, request_ctx),
+            tokenizer=self.tokenizer,
+        )
+        record_compaction_reclaim(
+            request_context,
+            _estimate_history_tokens(messages, self.tokenizer),
+            _estimate_history_tokens(compacted, self.tokenizer),
+        )
+        request_context.messages = compacted
+        return request_context
 
 
 def _key(index: int, position: int, part: ModelRequestPart) -> tuple[int, str]:
@@ -386,7 +454,7 @@ def build_history_compaction(
     *,
     tokenizer: Callable[[str], int] | None = None,
     model: Any = None,
-) -> ImageAwareCompaction:
+) -> SlidingWindowCompaction | ImageAwareCompaction:
     """Build a rollout planner's image-aware compaction from config options.
 
     Args:
@@ -400,10 +468,7 @@ def build_history_compaction(
         The compaction capability for the planner run.
     """
     if "target_tokens" not in options:
-        # Message-window recipes use the Harness's SlidingWindowCompaction.
-        from pydantic_ai_harness.compaction import SlidingWindowCompaction
-
-        return SlidingWindowCompaction(**options, tokenizer=tokenizer)
+        return ImageAwareSlidingWindowCompaction(**options, tokenizer=tokenizer)
     clear = dict(options.get("clear_tool_results") or {})
     summarizing = dict(options.get("summarizing") or {})
     keep_pairs = int(clear.get("keep_pairs", 8))

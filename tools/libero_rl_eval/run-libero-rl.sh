@@ -2,7 +2,7 @@
 # One LIBERO RL rollout against a served Qwen policy.
 #
 # RPENT_OBSERVATION_MODE (adaptive only) and
-# RPENT_PROMPT (simple|base|base_gripper|base_gripper_camera, default simple)
+# RPENT_PROMPT (simple|simple_brief|base|base_gripper|base_gripper_camera, default simple)
 # select the interface; --suite, --task, --seed and --cuda-device come from
 # the caller. Extra arguments go to rpent unchanged.
 set -euo pipefail

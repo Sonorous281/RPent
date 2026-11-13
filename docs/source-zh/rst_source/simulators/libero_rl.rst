@@ -21,7 +21,7 @@ LIBERO RL 轨迹采集
      - 固定使用 adaptive 观测：``view_env`` 返回两个相机图像，
        初始观测和动作返回包含测量状态。
    * - Prompt
-     - ``simple``、``base``、``base_gripper``、``base_gripper_camera``
+     - ``simple``、``simple_brief``、``base``、``base_gripper``、``base_gripper_camera``
    * - 默认预算
      - 100 次模型请求、10000 个环境步、每次请求最多 32768 个输出 token、
        262144 上下文、70% 历史压缩阈值、7200 秒规划器超时。
@@ -138,17 +138,19 @@ summary 会重新审计已封存的轨迹，报告有效数量和原生成功数
 
 历史 thinking 通过 ``reasoning_content`` 保留，并由模型自身的 chat template 渲染。RPent 用 ``<tool_response>`` 标签包裹工具图片的 user 消息，让 Qwen3.5 保留此前的 thinking；Qwen3.8 还会设置 ``preserve_thinking=true``。上下文管理会主动改变可见历史，最终实际请求保存在 ``api_trace`` 中。达到输出 token 上限的回答属于不完整训练输出，无法通过轨迹审计。
 
-Prompt 定义位于 ``robots/libero_rl/prompt_bundle.py``：``simple`` 包含工具契约；``base`` 增加机器人坐标系和执行方法；``base_gripper`` 增加手指几何；``base_gripper_camera`` 进一步增加相机几何。
+Prompt 定义位于 ``robots/libero_rl/prompt_bundle.py``：``simple`` 包含工具契约；``simple_brief`` 另外要求每次决策尽量不超过 256 个推理 token，这是提示词指导，不是解码器硬上限；``base`` 增加机器人坐标系和执行方法；``base_gripper`` 增加手指几何；``base_gripper_camera`` 进一步增加相机几何。
+
+RLinf 的消息窗口压缩会将估算的图像 token 计入触发条件，不把图像字节当作文本计数。消息截断仍采用 Harness 的滑动窗口并保留初始任务。这个估算用于上下文管理，不代表模型实际用量。按 token 数保留窗口的配方仍使用 Harness 原有行为。
 
 RLinf 训练
 ----------
 
-激活 RLinf 环境后，使用该仓库自己的入口和静态配置。``tools.rpent.python`` 指定 RPent 解释器。RPent 负责仿真和工具，RLinf 负责策略生成、actor/critic 优化、checkpoint 以及序列和历史配置。
+激活配套的 RLinf 环境，按其 README 填写 ``train_qwen3.5_4b_libero_rl_sao_local`` 配置中的部署路径。``tools.rpent.python`` 指定 RPent 解释器。RPent 负责仿真和工具，RLinf 负责策略生成、actor/critic 优化、checkpoint 以及序列和历史配置。
 
 .. code-block:: bash
 
    cd /path/to/RLinf
    source /path/to/rlinf-venv/bin/activate
-   bash examples/agent/rpent/run_train.sh train_qwen3.5_4b_libero_rl_local
+   bash examples/agent/rpent/run_train.sh train_qwen3.5_4b_libero_rl_sao_local
 
 RLinf 环境、RPent 子进程 CUDA/EGL 设置、共享 SAM3 启动和单步 smoke 配置见该仓库示例 README。独立采集的环境变量不会覆盖 RLinf 配方。比较结果时，需对齐 ``agentloop.prompt``、``agentloop.chat_template_kwargs``、``agentloop.history_compaction``、``algorithm.sampling_params`` 和 ``runner.seq_length``。

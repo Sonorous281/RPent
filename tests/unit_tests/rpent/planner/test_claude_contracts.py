@@ -33,6 +33,13 @@ from rpent.planner.claude_code import (
 )
 from rpent.tools import ToolResult, tool
 from rpent.tools.common import CommonTools
+from rpent.utils import logging as rpent_logging
+
+
+@pytest.fixture(autouse=True)
+def output_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Direct SDK adapter calls bypass the CLI's output-directory initialization.
+    monkeypatch.setattr(rpent_logging, "_output_dir", tmp_path)
 
 
 class RecordingSink:

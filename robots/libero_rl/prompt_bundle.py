@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Interface contract prompts for LIBERO RL rollouts, in four levels of detail.
+"""Interface contract prompts for LIBERO RL rollouts, with optional reasoning and geometry guidance.
 
-``simple`` is the bare tool contract. The other variants add what the robot
+``simple`` is the bare tool contract; ``simple_brief`` adds concise reasoning.
+The geometry variants add what the robot
 and its sensors are, in the order of the Astra prompt ablation: ``base``
 describes the arm, its frames, the execution of a motion and how to work;
 ``base_gripper`` adds the finger geometry; ``base_gripper_camera`` adds the
@@ -37,6 +38,10 @@ Tool names may carry an mcp__rpent__ prefix."""
 
 OBSERVATION_NOTE = "Images are supplied only when you call view_env."
 OBSERVATION_MODES = ("adaptive",)
+
+BRIEF_REASONING = """Keep reasoning concise: aim for at most 256 reasoning tokens per decision.
+Use the latest observation and tool feedback to choose the next action, then call the tool.
+Do not restate the task, repeat earlier reasoning, or narrate the full history."""
 
 BASE = """Robot and frames
 - One Franka arm with a parallel-jaw gripper. Its base stands at the -x edge of the workspace and faces +x; +y is the robot's left and +z is up. The work surface is horizontal.
@@ -63,9 +68,16 @@ CAMERA = """Cameras
 - Pixels are [row, col] from the top-left corner. A pixel alone fixes only a ray; segment and back_project return the depth-measured world point of the visible surface, so world_xyz lies on the object's top or facing side rather than its center, and top_z_m is its highest visible point.
 - Use pixels, masks and poses from the same observation step, and take a new observation after every motion."""
 
-PROMPT_VARIANTS = ("simple", "base", "base_gripper", "base_gripper_camera")
+PROMPT_VARIANTS = (
+    "simple",
+    "simple_brief",
+    "base",
+    "base_gripper",
+    "base_gripper_camera",
+)
 _SECTIONS = {
     "simple": (),
+    "simple_brief": (BRIEF_REASONING,),
     "base": (BASE,),
     "base_gripper": (BASE, GRIPPER),
     "base_gripper_camera": (BASE, GRIPPER, CAMERA),

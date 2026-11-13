@@ -27,7 +27,7 @@ state's LIBERO ``terminated`` flag; the planner's answer does not determine it.
      - Adaptive observations: ``view_env`` returns the two camera images;
        initial and action observations contain measured state.
    * - Prompts
-     - ``simple``, ``base``, ``base_gripper``, ``base_gripper_camera``
+     - ``simple``, ``simple_brief``, ``base``, ``base_gripper``, ``base_gripper_camera``
    * - Default budgets
      - 100 model requests, 10000 simulator steps, 32768 output tokens per
        request, 262144-token context, history compaction at 70%,
@@ -192,14 +192,23 @@ A reply ending at the output-token limit remains an incomplete training
 output and fails the trajectory audit.
 
 The prompt definitions live in ``robots/libero_rl/prompt_bundle.py``.
-``simple`` contains the tool contract; ``base`` adds robot frames and an
+``simple`` contains the tool contract; ``simple_brief`` also asks for at most
+256 reasoning tokens per decision. This is prompt guidance, not a decoder
+limit. ``base`` adds robot frames and an
 execution method; ``base_gripper`` adds finger geometry; and
 ``base_gripper_camera`` also adds camera geometry.
+
+For RLinf message-window recipes, the compaction trigger includes estimated
+image tokens, rather than treating image bytes as text. The message cutoff
+still follows Harness's sliding window and preserves the initial task. This
+estimate is used for context management; it is not measured model usage.
+Token-window recipes retain Harness's token-window behavior.
 
 RLinf Training
 --------------
 
-Activate RLinf and use its own launcher and static configuration. Configure
+Activate the paired RLinf checkout and fill the deployment paths in its
+``train_qwen3.5_4b_libero_rl_sao_local`` profile as described in its README. Configure
 ``tools.rpent.python`` to point to the RPent interpreter. RPent owns the
 simulator and tools; RLinf owns policy generation, actor/critic optimization,
 checkpointing and its sequence/history configuration.
@@ -208,7 +217,7 @@ checkpointing and its sequence/history configuration.
 
    cd /path/to/RLinf
    source /path/to/rlinf-venv/bin/activate
-   bash examples/agent/rpent/run_train.sh train_qwen3.5_4b_libero_rl_local
+   bash examples/agent/rpent/run_train.sh train_qwen3.5_4b_libero_rl_sao_local
 
 Its example README documents its environment, the RPent subprocess CUDA/EGL
 setup, shared SAM3 startup and the one-step smoke

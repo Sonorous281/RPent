@@ -21,6 +21,8 @@ import sys
 from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
+from types import FrameType
+from typing import NoReturn
 
 from openai import AsyncOpenAI
 from pydantic_core import to_jsonable_python
@@ -38,6 +40,15 @@ _TERMINAL_ERRORS = {
     "context_limit",
     "episode_timeout",
 }
+
+
+class _EpisodeTerminated(SystemExit):
+    """Exit requested by the episode supervisor."""
+
+
+def terminate_episode(signum: int, _frame: FrameType | None) -> NoReturn:
+    """Unwind the episode so its resources and trajectory are closed."""
+    raise _EpisodeTerminated(128 + signum)
 
 
 def token_counter(tokenizer_path: Path) -> Callable[[str], int]:
@@ -119,10 +130,13 @@ def capture_episode(toolkit: Toolkit, *, instruction: str, config: dict):
         yield results
     finally:
         result = results[0] if results else None
+        exception = sys.exc_info()[1]
+        terminated = isinstance(exception, _EpisodeTerminated)
         end_planner_task(
             state,
             result,
             finish_result=result.finish_result if result else None,
             environment_success=bool(toolkit.solved()),
-            exception=sys.exc_info()[1],
+            exception=None if terminated else exception,
+            cancelled_reason="operator" if terminated else None,
         )

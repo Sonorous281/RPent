@@ -111,10 +111,11 @@ def make_env(
     max_episode_steps: int = 10000,
 ) -> LiberoEnv:
     """Build a single-env LiberoEnv pinned to ``task_id`` / ``seed``."""
-    from rlinf.envs.sim.libero.libero_env import LiberoEnv
-    from rlinf.envs.sim.libero.utils import benchmark as _bench_mod
+    from rlinf.envs.sim.libero.libero_env import LiberoEnv, initialize_libero
+    from rlinf.envs.sim.libero.utils import get_benchmark_overridden
 
-    suite = _bench_mod.get_benchmark(suite_name)()
+    initialize_libero()
+    suite = get_benchmark_overridden(suite_name)()
     if not 0 <= task_id < suite.n_tasks:
         raise ValueError(
             f"task_id must be in [0, {suite.n_tasks}) for suite {suite_name!r}; got {task_id}"

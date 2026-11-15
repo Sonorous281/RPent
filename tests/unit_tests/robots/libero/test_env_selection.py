@@ -41,9 +41,21 @@ def backend(monkeypatch):
         monkeypatch.setitem(sys.modules, name, module)
     module = types.ModuleType("rlinf.envs.sim.libero.libero_env")
     module.LiberoEnv = constructor
+    initialized = False
+
+    def initialize_libero():
+        nonlocal initialized
+        initialized = True
+
+    def get_benchmark(name):
+        assert initialized, "LIBERO must configure asset paths before benchmark lookup"
+        assert name == "demo"
+        return lambda: suite
+
+    module.initialize_libero = initialize_libero
     monkeypatch.setitem(sys.modules, module.__name__, module)
     utils = types.ModuleType("rlinf.envs.sim.libero.utils")
-    utils.benchmark = SimpleNamespace(get_benchmark=lambda _: lambda: suite)
+    utils.get_benchmark_overridden = get_benchmark
     monkeypatch.setitem(sys.modules, utils.__name__, utils)
     return constructor, queried
 

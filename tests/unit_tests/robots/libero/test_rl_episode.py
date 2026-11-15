@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import signal
 import socket
 import threading
 import time
@@ -29,6 +30,7 @@ from PIL import Image
 
 from robots.libero import rl_episode
 from rpent.dashboard.events import NullDashboardEventSink
+from rpent.evaluation.rl_episode import capture_episode, terminate_episode
 from rpent.memory import MemoryManager
 from rpent.session import EnvState
 from rpent.tools import Toolkit, ToolResult, tool
@@ -85,6 +87,18 @@ def toolkit(tmp_path, monkeypatch):
     toolkit.add_tool(toolkit.look)
     yield toolkit
     toolkit.close()
+
+
+def test_terminated_episode_records_cancellation(toolkit):
+    with (
+        pytest.raises(SystemExit) as exit_info,
+        capture_episode(toolkit, instruction="Move the cup.", config={}),
+    ):
+        terminate_episode(signal.SIGTERM, None)
+
+    assert exit_info.value.code == 128 + signal.SIGTERM
+    task = toolkit.state.get_task()
+    assert (task.status, task.stop_reason) == ("cancelled", "operator")
 
 
 def tool_call(name: str, arguments: str = "{}") -> tuple[int, dict]:

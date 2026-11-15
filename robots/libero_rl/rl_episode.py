@@ -44,6 +44,7 @@ from rpent.evaluation.rl_episode import (
     capture_episode,
     episode_outcome,
     solve,
+    terminate_episode,
     token_counter,
     write_transcript,
 )
@@ -219,8 +220,7 @@ def main() -> None:
         "history compaction.",
     )
     args = parser.parse_args()
-    # A stopped episode still releases its simulator and model client.
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(128 + signal.SIGTERM))
+    signal.signal(signal.SIGTERM, terminate_episode)
     sys.exit(run(args))
 
 

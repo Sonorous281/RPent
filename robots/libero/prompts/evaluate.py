@@ -332,6 +332,7 @@ ALGORITHM (run this BEFORE manipulating):
 
 1. From the initial `task_language` + `agentview_high.png`, infer the
    task-relevant TARGETS and DESTINATIONS (language only; never BDDL/poses).
+   When object_names are available, use them as additional names, not positions.
 
 2. GLOBAL SEMANTIC PASS (agentview hi-res): in `agentview_high.png` choose each
    target/destination candidate by RGB, label/shape, and global spatial relation.

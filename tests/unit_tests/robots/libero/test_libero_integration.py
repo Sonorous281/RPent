@@ -739,7 +739,13 @@ def _rl_episode_args(tmp_path, monkeypatch, init_runtime, toolkit):
     )
     monkeypatch.setattr(rl_episode, "init_output_dir", lambda path: None)
     monkeypatch.setattr(rl_episode, "get_robot_spec", lambda: spec)
-    monkeypatch.setattr(rl_episode, "get_toolkit", lambda **kwargs: toolkit())
+
+    def make_toolkit(**kwargs):
+        assert kwargs["runtime_kwargs"]["include_object_names"] is False
+        assert kwargs["runtime_kwargs"]["vla_seed"] == 1
+        return toolkit()
+
+    monkeypatch.setattr(rl_episode, "get_toolkit", make_toolkit)
     request = tmp_path / "request.json"
     planner = {
         "base_url": "http://trainer/v1",

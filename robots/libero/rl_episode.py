@@ -90,6 +90,7 @@ def start_environment(
     for daemon in daemons:
         release.callback(daemon.stop)
     runtime["vla_seed"] = task.get("vla_seed")
+    runtime["include_object_names"] = False
     toolkit = get_toolkit(
         runtime_kwargs=runtime,
         dashboard_events=events,

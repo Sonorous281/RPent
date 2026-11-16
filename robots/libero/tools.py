@@ -68,6 +68,7 @@ class LiberoPrimitives:
         check_cancelled: Callable[[], None],
         molmo_client: MolmoClient | None = None,
         vla_seed: int | None = None,
+        include_object_names: bool = True,
         policy_kind: str = "vla",
     ):
         self.env = env
@@ -87,6 +88,7 @@ class LiberoPrimitives:
         # Toggled via start_recording() / stop_recording().
         self._recording = False
         self._frames = []
+        self.include_object_names = include_object_names
         self._vla_seed = vla_seed
         self._vla_rng = None
 
@@ -1090,6 +1092,12 @@ def dump_state(
         "robot0_eef_quat": [float(x) for x in raw["robot0_eef_quat"]],
         "robot0_gripper_qpos": [float(x) for x in raw["robot0_gripper_qpos"]],
     }
+    if primitives.include_object_names:
+        state["object_names"] = sorted(
+            key[:-4]
+            for key in raw
+            if key.endswith("_pos") and "robot0" not in key and "to_robot" not in key
+        )
     log = log or {}
     with env_state.record_step(
         state=state,

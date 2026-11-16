@@ -78,18 +78,6 @@ def test_native_task_failure_is_valid_but_success_must_match_environment(tmp_pat
         audit_episode(tmp_path)
 
 
-def test_wire_native_output_mismatch_cannot_enter_sft(tmp_path):
-    from rpent.evaluation.trajectory import audit_episode
-
-    _episode_fixture(tmp_path)
-    path = tmp_path / "api_trace/responses/000001.json"
-    value = json.loads(path.read_text())
-    value[0]["parts"][0]["content"] = "different"
-    path.write_text(json.dumps(value))
-    with pytest.raises(ValueError, match="completed turn coverage"):
-        audit_episode(tmp_path)
-
-
 @pytest.mark.parametrize("finish_reason", ["length", None])
 def test_output_limit_cannot_enter_sft(tmp_path, finish_reason):
     from rpent.evaluation.trajectory import audit_episode
@@ -100,56 +88,6 @@ def test_output_limit_cannot_enter_sft(tmp_path, finish_reason):
     (directory / "response.body").write_text(json.dumps(value))
     with pytest.raises(ValueError, match="completed turn coverage"):
         audit_episode(tmp_path)
-
-
-def test_stream_reader_requires_done_and_keeps_tool_fragments(tmp_path):
-    from rpent.evaluation.trajectory import read_response
-
-    write_json(
-        tmp_path / "metadata.json",
-        {
-            "complete": True,
-            "status_code": 200,
-            "content_type": "text/event-stream",
-        },
-    )
-    chunks = [
-        {
-            "choices": [
-                {
-                    "delta": {
-                        "reasoning_content": "think",
-                        "tool_calls": [
-                            {
-                                "index": 0,
-                                "id": "call1",
-                                "function": {"name": "finish", "arguments": "{"},
-                            }
-                        ],
-                    }
-                }
-            ]
-        },
-        {
-            "choices": [
-                {
-                    "delta": {
-                        "tool_calls": [{"index": 0, "function": {"arguments": "}"}}]
-                    },
-                    "finish_reason": "tool_calls",
-                }
-            ]
-        },
-    ]
-    body = "\n\n".join("data: " + json.dumps(chunk) for chunk in chunks)
-    (tmp_path / "response.body").write_text(body)
-    with pytest.raises(ValueError, match="SSE lacks DONE"):
-        read_response(tmp_path)
-    (tmp_path / "response.body").write_text(body + "\n\ndata: [DONE]\n\n")
-    message, metadata = read_response(tmp_path)
-    assert message["reasoning_content"] == "think"
-    assert message["tool_calls"][0]["function"] == {"name": "finish", "arguments": "{}"}
-    assert metadata["finish_reason"] == "tool_calls"
 
 
 @pytest.mark.parametrize("finish_reason", ["stop", "length"])

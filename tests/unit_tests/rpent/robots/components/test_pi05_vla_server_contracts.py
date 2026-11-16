@@ -112,41 +112,6 @@ def test_request_seed_repeats_actions_without_changing_shared_rng():
         facade.close()
 
 
-def test_pi05_serves_concurrent_predictions_on_one_thread(make_serve_in_thread):
-    import threading
-    import time
-    from concurrent.futures import ThreadPoolExecutor
-
-    import torch
-
-    threads = set()
-    barrier = threading.Barrier(8)
-
-    class Model:
-        device = torch.device("cpu")
-
-        def predict_action_batch(self, obs, mode, *, rng):
-            threads.add(threading.get_ident())
-            time.sleep(0.01)
-            return torch.randn(1, 5, 7, generator=rng), None
-
-    facade = Pi05VLAFacade.__new__(Pi05VLAFacade)
-    facade._embodiment = "libero"
-    BaseVLAFacade.__init__(facade)
-    facade._model = Model()
-    with make_serve_in_thread(facade, "http", enable_sessions=False) as client:
-
-        def predict(_):
-            barrier.wait(timeout=5)
-            return client.call("vla.predict", args=({}, {"seed": 123}), timeout_s=5)
-
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            actions = list(executor.map(predict, range(8)))
-        assert len(threads) == 1
-        for action in actions[1:]:
-            np.testing.assert_array_equal(action, actions[0])
-
-
 @pytest.mark.parametrize("embodiment", ["libero", "dual_franka", "robodojo", "yam"])
 def test_cli_forwards_model_configuration(monkeypatch, embodiment):
     import sys

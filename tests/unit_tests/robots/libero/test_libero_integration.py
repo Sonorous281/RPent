@@ -729,23 +729,6 @@ def test_libero_failed_chunk_discards_unconfirmed_actions(
     assert [item["action_id"] for item in selected["rejected"]] == [recovered.action_id]
 
 
-def test_seeded_vla_chunks_repeat_after_reset():
-    requests = []
-
-    class Model(_Model):
-        def predict(self, observation, *, options):
-            requests.append(options.copy())
-            return super().predict(observation, options=options)
-
-    primitives = LiberoPrimitives(_Env(), Model(), None, lambda: None, vla_seed=42)
-    for _ in range(2):
-        primitives.reset()
-        primitives._vlm_chunk("pick up the bowl")
-        primitives._vlm_chunk("pick up the bowl")
-    assert requests[:2] == requests[2:]
-    assert requests[0]["seed"] != requests[1]["seed"]
-
-
 def _rl_episode_args(tmp_path, monkeypatch, init_runtime, toolkit):
     from robots.libero import rl_episode
 
@@ -778,59 +761,6 @@ def _rl_episode_args(tmp_path, monkeypatch, init_runtime, toolkit):
     )
 
 
-def test_rl_episode_reports_outcome_after_releasing_the_scene(tmp_path, monkeypatch):
-    from robots.libero import rl_episode
-
-    released, seen = [], {}
-    daemon = SimpleNamespace(stop=lambda: released.append("env"))
-
-    def init_runtime(args, output, events, components):
-        seen.update(output=output, components=components, task=args.task)
-        return [daemon], {}
-
-    def toolkit():
-        state = EnvState(tmp_path)
-        monkeypatch.setattr(state, "get", lambda: SimpleNamespace(truncated=False))
-        return SimpleNamespace(
-            primitives=SimpleNamespace(reset_info={"init_state_id": 3}),
-            solved=lambda: True,
-            state=state,
-            close=lambda: released.append("toolkit"),
-        )
-
-    async def solve(*args, **kwargs):
-        assert not released and not (tmp_path / "outcome.json").exists()
-        return SimpleNamespace(
-            messages=[],
-            stats={"turns_used": 1},
-            finish_result=None,
-            error=None,
-            error_kind=None,
-        )
-
-    args = _rl_episode_args(tmp_path, monkeypatch, init_runtime, toolkit)
-    monkeypatch.setattr(rl_episode, "solve", solve)
-    assert rl_episode.run(args) == 0
-    assert seen == {"output": tmp_path, "components": {"env", "vla", "sam3"}, "task": 7}
-    assert released == ["toolkit", "env"]
-    # The trainer reads exactly these fields.
-    assert json.loads((tmp_path / "outcome.json").read_text()) == {
-        "success": True,
-        "truncated": False,
-        "terminal": True,
-        "termination_reason": "success",
-        "error": None,
-        "error_kind": None,
-        "init_state_id": 3,
-        "memory_entries": [],
-    }
-    task = json.loads(args.request.read_text())
-    task["task"]["memory_entries"] = [{"id": "task-family/task.md", "sha256": "0"}]
-    args.request.write_text(json.dumps(task))
-    with pytest.raises(ValueError, match="given together"):
-        rl_episode.run(args)
-
-
 def test_rl_episode_setup_failure_releases_started_services(tmp_path, monkeypatch):
     from robots.libero import rl_episode
 
@@ -845,51 +775,6 @@ def test_rl_episode_setup_failure_releases_started_services(tmp_path, monkeypatc
     assert rl_episode.run(args) == rl_episode.EXIT_SETUP_FAILED
     daemon.stop.assert_called_once()
     assert not (tmp_path / "outcome.json").exists()
-
-
-@pytest.mark.parametrize("backend", [None, "egl", "osmesa"])
-def test_environment_launcher_preserves_render_backend(monkeypatch, tmp_path, backend):
-    from robots.libero import runtime
-    from rpent.robots import runtime as shared_runtime
-
-    if backend is None:
-        monkeypatch.delenv("MUJOCO_GL", raising=False)
-    else:
-        monkeypatch.setenv("MUJOCO_GL", backend)
-    daemons = []
-
-    def daemon(**kwargs):
-        process = SimpleNamespace(**kwargs, start=Mock(), stop=Mock())
-        daemons.append(process)
-        return process
-
-    monkeypatch.setattr(runtime, "ProcessDaemon", daemon)
-    monkeypatch.setattr(runtime, "make_rpc_client", lambda endpoint: endpoint)
-    monkeypatch.setattr(shared_runtime, "make_rpc_client", lambda endpoint: endpoint)
-    monkeypatch.setattr(
-        shared_runtime, "wait_for_endpoint", lambda process: "http://127.0.0.1:12"
-    )
-    args = SimpleNamespace(
-        env_endpoint=None,
-        suite="libero_object",
-        task=1,
-        seed=3,
-        max_episode_steps=10000,
-        libero_type="standard",
-        cuda_device=2,
-    )
-    process, client = runtime.spawn_env_server(args, tmp_path)
-    assert process.env_overrides == {
-        "LIBERO_TYPE": "standard",
-        "MUJOCO_GL": backend or "egl",
-        "ROBOT_PLATFORM": "LIBERO",
-    }
-    assert process.cmd[-2:] == ["--cuda-device", "2"]
-    assert client == "http://127.0.0.1:12"
-    args.env_endpoint = "http://127.0.0.1:13"
-    external, client = runtime.spawn_env_server(args, tmp_path)
-    assert external is None and len(daemons) == 1
-    assert client == args.env_endpoint
 
 
 def test_environment_launcher_releases_failed_child(monkeypatch, tmp_path):

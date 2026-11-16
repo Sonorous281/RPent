@@ -150,7 +150,7 @@ class Toolkit:
         *,
         dashboard_events: DashboardEventSink,
         state: Any = None,
-        memory: "MemoryManager",
+        memory: "MemoryManager | None",
     ) -> None:
         self._tools: dict[str, Tool] = {}
         self._dashboard_events = dashboard_events
@@ -183,6 +183,9 @@ class Toolkit:
             self.add_tool(tool)
 
     def _register_common_tools(self) -> None:
+        if self._memory is None:
+            return
+
         from rpent.tools.common import CommonTools
 
         common = CommonTools(memory=self._memory)
@@ -201,8 +204,8 @@ class Toolkit:
     # ------------------------------------------------------------------
 
     @property
-    def memory(self) -> "MemoryManager":
-        """Return the run's required memory manager."""
+    def memory(self) -> "MemoryManager | None":
+        """Return the run's memory manager, or None when memory is disabled."""
         return self._memory
 
     @property

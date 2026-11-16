@@ -86,16 +86,22 @@ class _ContractToolkit(Toolkit):
         return False
 
 
-def test_toolkit_and_common_tools_require_memory() -> None:
+def test_toolkit_without_memory_exposes_no_file_tools() -> None:
     with pytest.raises(TypeError, match="memory"):
         Toolkit(dashboard_events=_RecordingEventSink())
-    with pytest.raises(TypeError, match="memory"):
-        Toolkit(dashboard_events=_RecordingEventSink(), memory=None)
+    toolkit = Toolkit(dashboard_events=_RecordingEventSink(), memory=None)
+    assert toolkit.memory is None
+    assert toolkit.list_tools() == ()
+    result = toolkit.execute_tool("read_text_file", {"path": "anything"})
+    assert result.data == {"error": "unknown tool: read_text_file"}
     with pytest.raises(TypeError, match="memory"):
         common.CommonTools(memory=None)
 
 
-def test_toolkit_registers_common_specs_as_fresh_copies(tmp_path: Path) -> None:
+def test_toolkit_registers_common_specs_as_fresh_copies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("rpent.utils.templates.get_output_dir", lambda: tmp_path)
     original = common.CommonTools.list_dir
     original_schema = original.input_schema
     toolkit = _ContractToolkit(tmp_path / "state")

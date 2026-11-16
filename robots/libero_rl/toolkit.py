@@ -24,7 +24,6 @@ from typing import Any
 from robots.libero.capture import capture_libero_call
 from robots.libero_rl.tools import LiberoRLPrimitives
 from rpent.dashboard.events import DashboardEventSink
-from rpent.memory import MemoryManager
 from rpent.session import EnvState
 from rpent.session.env_capture import CapturingEnvClient
 from rpent.tools import ToolResult, iter_tools
@@ -44,14 +43,13 @@ class LiberoRLToolkit(Toolkit):
         *,
         runtime_kwargs: dict[str, Any],
         dashboard_events: DashboardEventSink,
-        memory: MemoryManager,
         observation_mode: str,
         output_dir: Path | str,
     ) -> None:
         if observation_mode != "adaptive":
             raise ValueError("libero_rl supports only adaptive observations")
         state = EnvState(output_dir)
-        super().__init__(dashboard_events=dashboard_events, state=state, memory=memory)
+        super().__init__(dashboard_events=dashboard_events, state=state, memory=None)
         self._images_sent = 0
         self._images_lock = threading.Lock()
         runtime_kwargs = dict(runtime_kwargs)
@@ -67,9 +65,6 @@ class LiberoRLToolkit(Toolkit):
         self._recorded_env_steps = 0
         for definition in iter_tools(self._primitives):
             self.add_tool(definition)
-
-    def _register_common_tools(self) -> None:
-        """Register no file tools; rollouts observe only through robot tools."""
 
     def _robot_state(self) -> dict[str, Any]:
         env = self._primitives.env

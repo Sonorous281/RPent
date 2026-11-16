@@ -3,6 +3,10 @@ LIBERO RL 轨迹采集
 
 ``libero_rl`` 使用语言模型规划器调用六种机器人工具，在 LIBERO-PRO 中执行任务，不依赖动作模型、任务指南或任务记忆。独立 RPent 采集与 RLinf 训练使用相同的机器人接口。本页介绍采集，训练配置和启动入口由 RLinf 仓库维护。
 
+.. note::
+
+   本页介绍使用 **Qwen3.8-27B 独立采集 LIBERO-PRO 轨迹**。RLinf 的 **标准 LIBERO + Qwen3.5-4B 训练** 是另一套模型、基准与依赖组合；需要训练或单机单 Episode 检查时，直接使用下方“RLinf 训练”链接。两者共用机器人接口，不代表实验设置或结果可以直接比较。
+
 概览
 ----
 
@@ -146,7 +150,7 @@ LIBERO RL 轨迹采集
      - 整批使用一个 prompt 变体
    * - ``--endpoints``
      - ``RPENT_BASE_URL``
-     - 逗号分隔的策略 ``/v1`` endpoint
+     - 逗号分隔的policy ``/v1`` endpoint
    * - ``--start-interval``
      - ``1`` 秒
      - 初次启动 worker 的间隔
@@ -241,7 +245,7 @@ RLinf 训练
 
 训练入口见配套分支的 `RLinf 多模态训练说明 <https://github.com/Sonorous281/RLinf/blob/dev/rpent-rlinf-integration/docs/source-zh/rst_source/examples/agentic/rpent_libero_rl.rst>`__，其中包含安装、配置、启动、恢复和评测。RPent 负责仿真与工具；RLinf 负责模型生成、Actor/Critic 更新与权重同步。``tools.rpent.python`` 必须指向 RPent 解释器，子进程还需正确的 CUDA/EGL 环境。
 
-本页采集默认为 LIBERO-PRO，RLinf 多模态配方默认标准 LIBERO；采集环境变量不会覆盖 RLinf 配置。比较结果前，对齐基准、任务与 seed、模型、``agentloop.prompt``、``agentloop.chat_template_kwargs``、``agentloop.history_compaction``、``algorithm.sampling_params`` 和 ``runner.seq_length``。
+本页采集默认为 LIBERO-PRO，RLinf 多模态训练示例默认标准 LIBERO；采集环境变量不会覆盖 RLinf 配置。比较结果前，对齐基准、任务与 seed、模型、``agentloop.prompt``、``agentloop.chat_template_kwargs``、``agentloop.history_compaction``、``algorithm.sampling_params`` 和 ``runner.seq_length``。
 
 SFT 数据准备见配套 ms-swift checkout 的 ``ms-swift/examples/rpent/README.md``。导出器必须支持 schema version 5，并保留压缩后的请求、图像内容与顺序、历史 thinking 及 assistant loss mask。
 

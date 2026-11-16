@@ -33,11 +33,10 @@ from robots.libero_rl.prompt_bundle import (
 )
 from rpent.dashboard.events import DashboardEventSink
 from rpent.evaluation import RunFinalizationContext, write_json_atomic
-from rpent.memory import MemoryManager
 from rpent.robots.prompt_bundle import PromptBundle
 from rpent.robots.robot_spec import RobotSpec, RunConfig
 from rpent.robots.runtime import start_rpc_server, try_spawn_server, try_wait_server
-from rpent.utils.config import get_memory_dir, get_repo_root
+from rpent.utils.config import get_repo_root
 from rpent.utils.daemon import ProcessDaemon
 from rpent.utils.rpc import make_rpc_client
 
@@ -75,8 +74,6 @@ def get_toolkit(
     return LiberoRLToolkit(
         runtime_kwargs=runtime_kwargs,
         dashboard_events=dashboard_events,
-        # Required by Toolkit; this toolkit registers no file tools to read it.
-        memory=MemoryManager(get_memory_dir("libero_rl")),
         observation_mode=config.prompt_vars["observation_mode"],
         output_dir=config.output_dir,
     )

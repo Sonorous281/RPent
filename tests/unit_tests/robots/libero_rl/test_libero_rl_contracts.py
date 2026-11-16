@@ -30,7 +30,6 @@ from scipy.spatial.transform import Rotation
 from robots.libero_rl import geometry, prompt_bundle, robot_spec, tools
 from robots.libero_rl.toolkit import LiberoRLToolkit
 from rpent.dashboard.events import NullDashboardEventSink
-from rpent.memory import MemoryManager
 from rpent.robots.components.sam3_client import Sam3Result
 from rpent.robots.runtime import start_rpc_server
 from rpent.utils import templates
@@ -152,7 +151,6 @@ def make_toolkit(
             "sam3_client": sam3 or FakeSam3(bar_mask()),
         },
         dashboard_events=NullDashboardEventSink(),
-        memory=MemoryManager(tmp_path / "memory"),
         observation_mode=mode,
         output_dir=tmp_path / "run",
     )
@@ -162,6 +160,8 @@ def test_adaptive_exposes_the_complete_tool_set(tmp_path) -> None:
     toolkit = make_toolkit(tmp_path, "adaptive")
     assert {definition.name for definition in toolkit.list_tools()} == ALL_TOOLS
     assert toolkit.planner_builtin_tools is False
+    assert toolkit.memory is None
+    assert not (tmp_path / "memory").exists()
 
 
 def test_adaptive_returns_images_only_from_view_env(tmp_path) -> None:

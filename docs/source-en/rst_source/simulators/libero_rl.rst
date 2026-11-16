@@ -6,6 +6,10 @@ It uses no action model, task guides or task memory. The same robot interface
 is used by standalone RPent collection and RLinf training. This page covers
 collection; the RLinf repository owns the training configuration and launcher.
 
+.. note::
+
+   Use this page to collect **standalone LIBERO-PRO trajectories with Qwen3.8-27B**. RLinf's **standard LIBERO training with Qwen3.5-4B** uses a different model, benchmark and dependency stack. For training or the single-node, single-episode check, follow the RLinf Training link below. A shared robot interface does not make these results directly comparable.
+
 Overview
 --------
 

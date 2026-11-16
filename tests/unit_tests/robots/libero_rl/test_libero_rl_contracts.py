@@ -16,7 +16,9 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -184,3 +186,56 @@ def test_environment_success_ends_motion_and_refuses_later_actions(tmp_path) -> 
         "truncated": False,
     }
     assert toolkit.solved()
+
+
+@pytest.mark.parametrize(
+    "truncated,success,reason",
+    [
+        (False, False, "planner_completed"),
+        (True, False, "environment_limit"),
+        (True, True, "success"),
+    ],
+)
+def test_rl_episode_preserves_environment_limit(
+    tmp_path, monkeypatch, truncated, success, reason
+) -> None:
+    from robots.libero_rl import rl_episode
+
+    env = FakeEnv()
+    env.truncated = truncated
+    env.terminated = success
+    toolkit = make_toolkit(tmp_path, "adaptive", env=env)
+    output = tmp_path / "run"
+    request = output / "request.json"
+    request.write_text(json.dumps({"task": {}, "planner": {"max_turns": 4}}))
+
+    def start_environment(args, task, release):
+        release.callback(toolkit.close)
+        return toolkit, None
+
+    async def solve(*args, **kwargs):
+        return SimpleNamespace(
+            messages=[],
+            stats={"turns_used": 1},
+            finish_result=None,
+            error=None,
+            error_kind=None,
+        )
+
+    monkeypatch.setattr(rl_episode, "start_environment", start_environment)
+    monkeypatch.setattr(rl_episode, "render_prompts", lambda config: ("system", "task"))
+    monkeypatch.setattr(rl_episode, "build_planner", lambda **kwargs: (None, None))
+    monkeypatch.setattr(rl_episode, "solve", solve)
+    args = SimpleNamespace(
+        request=request,
+        output_dir=output,
+        tokenizer_path=None,
+        observation_mode="adaptive",
+        prompt="simple",
+    )
+    assert rl_episode.run(args) == 0
+    outcome = json.loads((output / "outcome.json").read_text())
+    assert outcome["truncated"] is truncated
+    assert outcome["termination_reason"] == reason
+    assert outcome["terminal"]
+    assert outcome["success"] is success

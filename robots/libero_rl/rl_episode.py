@@ -192,7 +192,12 @@ def run(args: argparse.Namespace) -> int:
         captured_results.append(result)
         write_transcript(args.output_dir, result)
         outcome = {
-            **episode_outcome(result, toolkit, max_turns),
+            **episode_outcome(
+                result,
+                toolkit,
+                max_turns,
+                truncated=bool(toolkit.state.get().truncated),
+            ),
             "observation_mode": args.observation_mode,
             "prompt": args.prompt,
             "init_state_id": task.get("init_state_id"),

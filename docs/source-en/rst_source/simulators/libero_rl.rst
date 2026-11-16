@@ -9,51 +9,63 @@ collection; the RLinf repository owns the training configuration and launcher.
 Overview
 --------
 
-Each episode starts a fresh simulator. A shared SAM3 service can provide
-segmentation for several episodes. The planner acts until ``finish``, the
-request or simulator-step budget, or a timeout. Native success is the last
-state's LIBERO ``terminated`` flag; the planner's answer does not determine it.
+.. grid:: 2 4 4 4
+   :gutter: 2
 
-.. list-table:: Interface
+   .. grid-item-card:: Action Models
+
+      No VLA; tools control the end effector directly.
+
+   .. grid-item-card:: Planners
+
+      Qwen with image inputs and tool calls; the example uses Qwen3.8-27B.
+
+   .. grid-item-card:: Tasks
+
+      Four LIBERO-PRO suites with 40 tasks.
+
+   .. grid-item-card:: Hardware
+
+      Linux NVIDIA GPUs; the example assigns two GPUs to serving, one to SAM3 and one to simulation.
+
+Tasks
+~~~~~
+
+.. list-table::
    :header-rows: 1
-   :widths: 30 70
 
-   * - Component
+   * - Scope
+     - Contents
+   * - LIBERO-PRO
+     - ``libero_object``, ``libero_goal``, ``libero_spatial`` and ``libero_10``, each with task 0–9.
+   * - Seed
+     - ``--seed`` selects the task initial state; batch collection can cover multiple seeds.
+
+Observation and Action
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+
+   * - Item
      - Behavior
-   * - Tools
-     - ``move_to``, ``set_gripper``, ``view_env``,
-       ``segment``, ``back_project``, ``finish``
    * - Observation
-     - Adaptive observations: ``view_env`` returns the two camera images;
-       initial and action observations contain measured state.
-   * - Prompts
-     - ``simple``, ``simple_brief``, ``base``, ``base_gripper``, ``base_gripper_camera``
-   * - Default budgets
-     - 100 model requests, 10000 simulator steps, 32768 output tokens per
-       request, 262144-token context, history compaction at 70%,
-       7200-second planner timeout. The batch launcher also enforces a
-       14400-second episode timeout.
+     - Adaptive only: measured state at initialization and after actions; ``view_env`` returns two camera images.
+   * - Action
+     - ``move_to`` / ``set_gripper`` / ``view_env`` / ``segment`` / ``back_project`` / ``finish``
+   * - Reward / success
+     - The last state's LIBERO ``terminated`` flag determines success, not the planner's ``finish`` response.
+   * - Task prompt
+     - Task description and tool prompt; ``simple`` by default, with brief-reasoning and geometry variants.
+
+Each episode starts a fresh simulator and ends on ``finish``, an exhausted budget or a timeout. Episodes can share SAM3. The example GPU allocation is not a minimum-memory guarantee; verify one task before increasing concurrency.
 
 Installation and Resources
 --------------------------
 
-Use Linux x86_64, Python 3.12, NVIDIA EGL and a CUDA-compatible driver.
-Install the simulator in its own environment from the RPent checkout root:
+Complete :doc:`libero_rl_setup` using the paired ``Sonorous281/RPent`` and ``Sonorous281/RLinf`` integration branches. Prepare separate simulator and model-serving environments, the full Qwen model, SAM3 weights and LIBERO-PRO assets. No Pi0.5 checkpoint is needed.
 
-.. code-block:: bash
-
-   uv venv --python 3.12 .venv
-   source .venv/bin/activate
-   uv pip install --prerelease=allow --torch-backend cu128 -r requirements/libero-rl.txt
-   source tools/libero_rl_eval/env.sh
-
-The :download:`complete setup guide <../../../../tools/libero_rl_eval/README.md>`
-covers a separate SGLang environment, model/SAM3 downloads, LIBERO-PRO assets,
-configuration generation and offline installation. Complete those steps before
-running an episode. Set ``RPENT_DATA_ROOT`` before sourcing ``env.sh`` to choose
-the data root; its default is ``$XDG_DATA_HOME/rpent``, falling back to
-``$HOME/.local/share/rpent``. Explicit asset/checkpoint variables take precedence.
-No cluster-specific activation script or Pi0.5 checkpoint is required.
+Run the following commands from the RPent checkout root. Use the same source and assets in all three terminals. For custom storage, export ``RPENT_DATA_ROOT`` in each terminal before sourcing ``env.sh``.
 
 Run a Task
 ----------
@@ -68,7 +80,10 @@ For a model without MTP weights, use ``ENABLE_MTP=0``.
 .. code-block:: bash
 
    source .venv-sglang/bin/activate
-   MODEL_PATH=/path/to/Qwen3.8-27B SERVE_GPUS=2,3 bash tools/libero_rl_eval/serve.sh
+   MODEL_PATH="$HOME/.local/share/rpent/models/Qwen3.8-27B" SERVE_GPUS=2,3 \
+     bash tools/libero_rl_eval/serve.sh
+
+Set ``MODEL_PATH`` to the downloaded directory when using ``XDG_DATA_HOME`` or custom storage. Keep this terminal in the SGLang environment; ``env.sh`` requires the RPent interpreter and is only sourced in the simulator/SAM3 terminals.
 
 The service is ready when ``curl http://127.0.0.1:30080/v1/models`` lists the
 model. In a second terminal, activate RPent and start shared SAM3:
@@ -98,7 +113,7 @@ on the simulator GPU. Extra command-line arguments pass through to ``rpent``.
 View Results
 ------------
 
-The default output is ``logs/libero-rl-<mode>-<prompt>-<time>`` in the RPent
+The default output is ``logs/libero-rl-adaptive-<prompt>-<time>`` in the RPent
 checkout. Set ``RPENT_OUTPUT_DIR`` to choose another directory. Each episode
 contains:
 
@@ -137,6 +152,37 @@ here. ``--endpoints URL,URL`` distributes workers over additional local model
 services. ``--start-interval`` staggers initial worker starts; size
 ``--per-gpu`` for the simulator GPU's available memory and initialization load.
 
+.. list-table::
+   :header-rows: 1
+
+   * - Batch argument
+     - Default
+     - Meaning
+   * - ``--jobs``
+     - Required
+     - Four-field task manifest
+   * - ``--seeds``
+     - Manifest seeds
+     - Comma-separated seeds/ranges, e.g. ``0,3-66``
+   * - ``--gpus``, ``--per-gpu``
+     - GPUs required; 1 worker/GPU
+     - Environment GPUs and worker count per GPU
+   * - ``--prompt``
+     - ``simple``
+     - One prompt variant for the batch
+   * - ``--endpoints``
+     - ``RPENT_BASE_URL``
+     - Comma-separated policy ``/v1`` endpoints
+   * - ``--start-interval``
+     - ``1`` second
+     - Spacing between initial worker starts
+   * - ``--episode-timeout``
+     - ``14400`` seconds
+     - Outer process timeout per episode
+   * - ``--infrastructure-retries``
+     - ``1``
+     - Additional attempts after an error/audit failure per invocation
+
 Each job has separate ``attempt-NNN`` directories. A normal unsuccessful task
 is valid data. An infrastructure error or failed audit is retained with
 ``INVALID.json`` and retried once by default. An interrupted attempt gets
@@ -153,8 +199,43 @@ prompt or generation settings on resume.
      "$RPENT_DATA_ROOT/rollouts/new-run"
 
 The summary re-audits sealed episodes and reports valid episodes and native
-successes. Dataset preparation and training are in
-``ms-swift/examples/rpent``.
+successes. Use the paired ms-swift checkout's ``ms-swift/examples/rpent`` for SFT data preparation and training on the collected trajectories.
+
+Model Service Configuration
+---------------------------
+
+The model service listens on ``127.0.0.1``. These variables control serving; arguments after ``serve.sh`` pass through to SGLang.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Service variable
+     - Default
+     - Meaning
+   * - ``RPENT_SGLANG_PYTHON``
+     - ``python``
+     - Interpreter from the active SGLang environment; does not activate CUDA libraries
+   * - ``SERVE_GPUS``
+     - ``2,3``
+     - Visible physical GPUs; their count sets TP
+   * - ``MODEL_PATH``
+     - Required
+     - Local checkpoint directory
+   * - ``MODEL_NAME``
+     - ``qwen3.8-27b``
+     - Served name; match ``RPENT_MODEL`` after ``openai-chat:``
+   * - ``SERVE_PORT``
+     - ``30080``
+     - Local model port
+   * - ``SERVE_MEM_FRACTION``
+     - ``0.8``
+     - SGLang static memory fraction
+   * - ``SERVE_CONCURRENCY``
+     - ``8``
+     - Maximum running model requests
+   * - ``ENABLE_MTP``
+     - ``1``
+     - EAGLE/MTP: 3 steps, top-k 1, 4 draft tokens; set 0 for a model without MTP weights
 
 Planner Configuration
 ---------------------
@@ -185,6 +266,8 @@ send no effort tier, while thinking remains enabled. The service uses
    * - ``RPENT_PRESENCE_PENALTY`` / ``RPENT_REPETITION_PENALTY``
      - Unset; optional explicit sampling overrides
 
+To reproduce the SFT-checkpoint evaluation penalties, set ``RPENT_PRESENCE_PENALTY=1.5`` and ``RPENT_REPETITION_PENALTY=1.0`` explicitly. ``--observation-mode adaptive`` is accepted; image/text modes are unsupported. Reduce ``RPENT_MAX_TURNS`` for an installation check, while keeping the intended budget for collection.
+
 Earlier thinking is preserved in ``reasoning_content`` and rendered by the
 model's own chat template. RPent wraps tool-image user messages with
 ``<tool_response>`` tags so Qwen3.5 retains earlier thinking. Qwen3.8 also uses
@@ -209,21 +292,28 @@ Token-window recipes retain Harness's token-window behavior.
 RLinf Training
 --------------
 
-Activate the paired RLinf checkout and fill the deployment paths in its
-``train_qwen3.5_4b_libero_rl_sao_local`` profile as described in its README. Configure
-``tools.rpent.python`` to point to the RPent interpreter. RPent owns the
-simulator and tools; RLinf owns policy generation, actor/critic optimization,
-checkpointing and its sequence/history configuration.
+Use the paired branch's `RLinf multimodal training guide <https://github.com/Sonorous281/RLinf/blob/dev/rpent-rlinf-integration/docs/source-en/rst_source/examples/agentic/rpent_libero_rl.rst>`__ for installation, launch, recovery and evaluation. RPent owns simulation and tools; RLinf owns generation, actor/critic updates and weight synchronization. Set ``tools.rpent.python`` to the RPent interpreter and provide the subprocess CUDA/EGL environment.
 
-.. code-block:: bash
+Standalone collection defaults to LIBERO-PRO; the RLinf multimodal recipe defaults to standard LIBERO. Collection environment variables do not override RLinf settings. Before comparing results, match the benchmark, tasks and seeds, model, ``agentloop.prompt``, ``agentloop.chat_template_kwargs``, ``agentloop.history_compaction``, ``algorithm.sampling_params`` and ``runner.seq_length``.
 
-   cd /path/to/RLinf
-   source /path/to/rlinf-venv/bin/activate
-   bash examples/agent/rpent/run_train.sh train_qwen3.5_4b_libero_rl_sao_local
+For SFT, use ``ms-swift/examples/rpent/README.md`` in the paired ms-swift checkout. Exporters must support schema version 5 and preserve post-compaction requests, image content/order, historical thinking and assistant loss masks.
 
-Its example README documents its environment, the RPent subprocess CUDA/EGL
-setup, shared SAM3 startup and the one-step smoke
-configuration. Standalone environment variables do not override the RLinf
-recipe. Match ``agentloop.prompt``,
-``agentloop.chat_template_kwargs``, ``agentloop.history_compaction``,
-``algorithm.sampling_params`` and ``runner.seq_length`` when comparing runs.
+Troubleshooting
+---------------
+
+.. list-table::
+   :header-rows: 1
+
+   * - Symptom
+     - Check
+   * - Model endpoint unavailable
+     - Check ``/v1/models`` for the configured model name, then inspect the serving terminal and its separate environment.
+   * - Simulator initialization fails
+     - Check EGL/driver availability and the asset, BDDL and initial-state paths in ``config.yaml``.
+   * - Attempt marked invalid
+     - Read ``INVALID.json`` and the attempt log. A normal task failure is valid; truncated responses, missing attachments and infrastructure errors need repair before retrying.
+
+.. toctree::
+   :hidden:
+
+   libero_rl_setup

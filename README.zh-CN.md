@@ -115,7 +115,7 @@ RPent 面向以下四类用户：
 
 ## 快速开始
 
-使用本地 Qwen 直接采集 LIBERO 轨迹（不使用 VLA）时，参见 [LIBERO RL 环境安装、启动与参数说明](tools/libero_rl_eval/README_zh.md)。
+使用本地 Qwen 直接采集 LIBERO 轨迹（不使用 VLA）时，参见 [LIBERO RL 使用指南](docs/source-zh/rst_source/simulators/libero_rl.rst)。首次部署先完成 [安装与资源准备](docs/source-zh/rst_source/simulators/libero_rl_setup.rst)。
 
 **1. 选择一个环境并安装 RPent。**
 
